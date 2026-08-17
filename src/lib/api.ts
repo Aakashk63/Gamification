@@ -1,66 +1,9 @@
 /**
  * CampusXP — Centralized Frontend API Service
- * All backend requests funnel through this module.
- * Base URL: http://localhost:5001
+ * Now fully powered by Supabase! No external backend needed.
  */
 
-const BASE_URL = import.meta.env.DEV ? 'http://localhost:5001' : '';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-async function request<T>(
-  path: string,
-  options?: RequestInit
-): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(options?.headers ?? {}) },
-    ...options,
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(json.detail || json.error || json.message || `Request failed: ${res.status}`);
-  }
-  return json as T;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// AUTH APIS
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Login a user (student or mentor) via the backend auth proxy → Supabase */
-export async function apiLogin(email: string, password: string) {
-  return request<{ session: any; user: any }>('/api/login', {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
-  });
-}
-
-/** Register a new user via the backend auth proxy → Supabase */
-export async function apiSignup(email: string, password: string, options: object) {
-  return request<{ session: any; user: any }>('/api/signup', {
-    method: 'POST',
-    body: JSON.stringify({ email, password, options }),
-  });
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MENTOR APIS
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface ApiMentor {
-  id: string;
-  name: string;
-  role: string;
-  department: string;
-  avatar: string;
-}
-
-/** Fetch all available mentors from MongoDB */
-export async function apiGetMentors(): Promise<ApiMentor[]> {
-  return request<ApiMentor[]>('/api/mentors');
-}
+import { supabase } from './supabase';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD APIS
@@ -74,9 +17,21 @@ export interface ApiDashboardStats {
   liveStatus: string;
 }
 
-/** Fetch live dashboard summary stats */
 export async function apiGetDashboardStats(): Promise<ApiDashboardStats> {
-  return request<ApiDashboardStats>('/api/dashboard');
+  // In a real app, you might run an RPC function or aggregate queries.
+  // For now, we fetch basic counts or return placeholder data.
+  
+  const { count: postsCount } = await supabase
+    .from('announcements')
+    .select('*', { count: 'exact', head: true });
+    
+  return {
+    totalTeams: 16,
+    overallLeader: 'TITANS',
+    activeMentorsCount: 4,
+    totalAnnouncementsCount: postsCount || 0,
+    liveStatus: 'Spring Season 4 Active'
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -85,67 +40,136 @@ export async function apiGetDashboardStats(): Promise<ApiDashboardStats> {
 
 export interface ApiComment {
   id: string;
+  post_id: string;
+  user_id: string;
   authorName: string;
   authorAvatar: string;
   content: string;
-  createdAt: string;
+  created_at: string;
 }
 
 export interface ApiPost {
   id: string;
+  user_id: string;
   authorName: string;
   authorAvatar: string;
   authorTagline: string;
-  createdAt: string;
+  created_at: string;
   content: string;
   image?: string;
   video?: string;
-  likes: number;
-  hasLiked: boolean;
+  likes: number; // dynamically calculated
+  hasLiked: boolean; // dynamically calculated
   shares: number;
-  comments: ApiComment[];
+  comments: ApiComment[]; // populated from relations
 }
 
 /** Fetch all announcement posts (sorted newest first) */
 export async function apiGetPosts(): Promise<ApiPost[]> {
-  return request<ApiPost[]>('/api/posts');
+  const { data: { session } } = await supabase.auth.getSession();
+  const currentUserId = session?.user?.id;
+
+  const { data, error } = await supabase
+    .from('announcements')
+    .select(`
+      *,
+      announcement_comments (*),
+      announcement_likes (user_id)
+    `)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+
+  return data.map((post: any) => ({
+    ...post,
+    comments: post.announcement_comments || [],
+    likes: post.announcement_likes?.length || 0,
+    hasLiked: post.announcement_likes?.some((like: any) => like.user_id === currentUserId) || false,
+  }));
 }
 
 /** Create a new announcement post */
-export async function apiCreatePost(post: Omit<ApiPost, 'comments'> & { comments: ApiComment[] }): Promise<ApiPost> {
-  return request<ApiPost>('/api/posts', {
-    method: 'POST',
-    body: JSON.stringify(post),
-  });
+export async function apiCreatePost(post: Partial<ApiPost>): Promise<any> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  const { data, error } = await supabase
+    .from('announcements')
+    .insert([{
+      user_id: session.user.id,
+      authorName: post.authorName,
+      authorAvatar: post.authorAvatar,
+      authorTagline: post.authorTagline,
+      content: post.content,
+      image: post.image,
+      video: post.video,
+      shares: 0
+    }])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 /** Delete a post by ID */
 export async function apiDeletePost(postId: string): Promise<{ success: boolean }> {
-  return request<{ success: boolean }>(`/api/posts/${postId}`, {
-    method: 'DELETE',
-  });
+  const { error } = await supabase
+    .from('announcements')
+    .delete()
+    .eq('id', postId);
+
+  if (error) throw error;
+  return { success: true };
 }
 
 /** Toggle like on a post */
-export async function apiLikePost(postId: string): Promise<ApiPost> {
-  return request<ApiPost>(`/api/posts/${postId}/like`, {
-    method: 'POST',
-  });
+export async function apiLikePost(postId: string, isLiking: boolean): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return;
+
+  if (isLiking) {
+    await supabase.from('announcement_likes').insert({
+      announcement_id: postId,
+      user_id: session.user.id
+    });
+  } else {
+    await supabase.from('announcement_likes')
+      .delete()
+      .eq('announcement_id', postId)
+      .eq('user_id', session.user.id);
+  }
 }
 
 /** Add a comment to a post */
-export async function apiAddComment(postId: string, comment: ApiComment): Promise<ApiPost> {
-  return request<ApiPost>(`/api/posts/${postId}/comments`, {
-    method: 'POST',
-    body: JSON.stringify(comment),
-  });
+export async function apiAddComment(postId: string, content: string, profile: any): Promise<any> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  const { data, error } = await supabase
+    .from('announcement_comments')
+    .insert([{
+      post_id: postId,
+      user_id: session.user.id,
+      authorName: profile.name,
+      authorAvatar: profile.avatar,
+      content: content
+    }])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 /** Delete a comment from a post */
-export async function apiDeleteComment(postId: string, commentId: string): Promise<ApiPost> {
-  return request<ApiPost>(`/api/posts/${postId}/comments/${commentId}`, {
-    method: 'DELETE',
-  });
+export async function apiDeleteComment(commentId: string): Promise<void> {
+  const { error } = await supabase
+    .from('announcement_comments')
+    .delete()
+    .eq('id', commentId);
+
+  if (error) throw error;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -164,8 +188,21 @@ export interface ApiFeedback {
 
 /** Submit feedback via API */
 export async function apiSubmitFeedback(feedback: ApiFeedback): Promise<{ success: boolean }> {
-  return request<{ success: boolean }>('/api/feedback', {
-    method: 'POST',
-    body: JSON.stringify(feedback),
-  });
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  const { error } = await supabase
+    .from('feedback')
+    .insert([{
+      user_id: session?.user?.id || null, // Allow anonymous or map to user
+      name: feedback.name,
+      department: feedback.department,
+      teamName: feedback.teamName,
+      email: feedback.email,
+      contactNumber: feedback.contactNumber,
+      feedback: feedback.feedback,
+      file_name: feedback.fileName
+    }]);
+
+  if (error) throw error;
+  return { success: true };
 }
