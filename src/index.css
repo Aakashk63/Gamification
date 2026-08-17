@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@layer base {
+  * {
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+  h1, h2, h3, h4, .font-heading {
+    font-family: 'Outfit', sans-serif;
+  }
+  .font-rank {
+    font-family: 'Rajdhani', sans-serif;
+  }
+}
+
+/* Custom visual effects */
+.glow-gold {
+  box-shadow: 0 0 35px -5px rgba(245, 158, 11, 0.35), 0 0 15px -3px rgba(251, 191, 36, 0.2);
+}
+
+.glow-silver {
+  box-shadow: 0 0 30px -5px rgba(148, 163, 184, 0.3), 0 0 15px -3px rgba(203, 213, 225, 0.15);
+}
+
+.glow-bronze {
+  box-shadow: 0 0 30px -5px rgba(217, 119, 6, 0.3), 0 0 15px -3px rgba(180, 83, 9, 0.2);
+}
+
+.podium-gold-border {
+  border-image: linear-gradient(to bottom, #fbbf24, #d97706, rgba(217, 119, 6, 0.2)) 1;
+}
+
+/* Shimmer animation */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 2.5s infinite;
+}
+
+/* Subtle float */
+@keyframes float-subtle {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+.animate-float {
+  animation: float-subtle 4s ease-in-out infinite;
+}
