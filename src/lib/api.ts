@@ -4,7 +4,7 @@
  * Base URL: http://localhost:5001
  */
 
-const BASE_URL = 'http://localhost:5001';
+const BASE_URL = import.meta.env.DEV ? 'http://localhost:5001' : '';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers

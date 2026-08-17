@@ -373,35 +373,6 @@ async def delete_post(post_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete post: {e}")
 
-# 4. Like/Unlike Post
-@app.post("/api/posts/{post_id}/like")
-async def like_post(post_id: str):
-    try:
-        if use_mongo:
-            post = await posts_collection.find_one({"id": post_id})
-            if not post:
-                raise HTTPException(status_code=404, detail="Post not found")
-            new_liked = not post.get("hasLiked", False)
-            new_likes = post.get("likes", 0) + (1 if new_liked else -1)
-            await posts_collection.update_one(
-                {"id": post_id},
-                {"$set": {"hasLiked": new_liked, "likes": max(0, new_likes)}}
-            )
-            updated = await posts_collection.find_one({"id": post_id})
-            return serialize(updated)
-        else:
-            posts = read_local_db()
-            for p in posts:
-                if p.get("id") == post_id:
-                    p["hasLiked"] = not p.get("hasLiked", False)
-                    p["likes"] = max(0, p.get("likes", 0) + (1 if p["hasLiked"] else -1))
-                    write_local_db(posts)
-                    return p
-            raise HTTPException(status_code=404, detail="Post not found")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to like post: {e}")
 
 # 5. Add Comment
 @app.post("/api/posts/{post_id}/comments", status_code=201)

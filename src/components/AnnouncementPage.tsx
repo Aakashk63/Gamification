@@ -5,7 +5,6 @@ import {
   apiGetPosts,
   apiCreatePost,
   apiDeletePost,
-  apiLikePost,
   apiAddComment,
   apiDeleteComment,
   type ApiPost,
@@ -53,7 +52,31 @@ export const AnnouncementPage: React.FC = () => {
   const fetchPosts = async () => {
     try {
       const data = await apiGetPosts();
-      setPosts(data as unknown as Post[]);
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      const currentUserId = session?.user?.id;
+      
+      // Fetch likes from Supabase
+      const { data: likesData, error: likesError } = await supabase
+        .from('announcement_likes')
+        .select('announcement_id, user_id');
+        
+      if (!likesError && likesData) {
+        // Map over posts and merge likes
+        const enrichedPosts = data.map((post: any) => {
+          const postLikes = likesData.filter((l) => l.announcement_id === post.id);
+          const hasLiked = postLikes.some((l) => l.user_id === currentUserId);
+          
+          return {
+            ...post,
+            likes: postLikes.length,
+            hasLiked
+          };
+        });
+        setPosts(enrichedPosts as unknown as Post[]);
+      } else {
+        setPosts(data as unknown as Post[]);
+      }
     } catch (err) {
       console.warn('Backend API connection failed.');
     } finally {
@@ -190,15 +213,22 @@ export const AnnouncementPage: React.FC = () => {
 
   // Like action
   const handleLikePost = async (postId: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const currentUserId = session?.user?.id;
+    if (!currentUserId) return;
+
+    const targetPost = posts.find((p) => p.id === postId);
+    if (!targetPost) return;
+    const isLiking = !targetPost.hasLiked;
+
     // Optimistic UI update
     setPosts(
       posts.map((post) => {
         if (post.id === postId) {
-          const hasLiked = !post.hasLiked;
           return {
             ...post,
-            hasLiked,
-            likes: hasLiked ? post.likes + 1 : post.likes - 1
+            hasLiked: isLiking,
+            likes: isLiking ? post.likes + 1 : post.likes - 1
           };
         }
         return post;
@@ -206,10 +236,20 @@ export const AnnouncementPage: React.FC = () => {
     );
 
     try {
-      await apiLikePost(postId);
-      fetchPosts();
+      if (isLiking) {
+        await supabase.from('announcement_likes').insert({
+          announcement_id: postId,
+          user_id: currentUserId
+        });
+      } else {
+        await supabase.from('announcement_likes')
+          .delete()
+          .eq('announcement_id', postId)
+          .eq('user_id', currentUserId);
+      }
     } catch (err) {
-      console.error('Failed to like post:', err);
+      console.error('Failed to toggle like in Supabase:', err);
+      fetchPosts(); // Revert on failure
     }
   };
 

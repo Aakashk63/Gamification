@@ -44,11 +44,11 @@ export function App() {
         {/* Redirect root to /leaderboard */}
         <Route path="/" element={<Navigate to="/leaderboard" replace />} />
         {/* All dashboard tabs as routes */}
-        <Route path="/leaderboard" element={<Dashboard />} />
-        <Route path="/announcement" element={<Dashboard />} />
-        <Route path="/task" element={<Dashboard />} />
-        <Route path="/redeem" element={<Dashboard />} />
-        <Route path="/feedback" element={<Dashboard />} />
+        <Route path="/leaderboard" element={<Dashboard key={session.user.id} />} />
+        <Route path="/announcement" element={<Dashboard key={session.user.id} />} />
+        <Route path="/task" element={<Dashboard key={session.user.id} />} />
+        <Route path="/redeem" element={<Dashboard key={session.user.id} />} />
+        <Route path="/feedback" element={<Dashboard key={session.user.id} />} />
         {/* Catch-all */}
         <Route path="*" element={<Navigate to="/leaderboard" replace />} />
       </Routes>
