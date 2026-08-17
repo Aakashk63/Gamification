@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { apiLogin, apiSignup } from '../lib/api';
 
 // Mentor shape as fetched from Supabase profiles table
 interface ApiMentor {
@@ -105,27 +104,27 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
 
     try {
       if (isLogin) {
-        // --- LOGIN via backend API proxy → Supabase ---
-        const data = await apiLogin(emailTrim, password);
+        // --- LOGIN via Supabase native ---
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: emailTrim,
+          password: password,
+        });
+        
+        if (error) throw error;
 
-        // Derive role from email domain (snsgroups.com = mentor)
-        const derivedRole = emailDomain.endsWith('snsgroups.com') ? 'mentor' : 'student';
-        const userRole = data.user?.user_metadata?.role || derivedRole;
-
+        // Role verification
+        const userRole = data.user?.user_metadata?.role;
         if (role === 'mentor' && userRole !== 'mentor') {
+          await supabase.auth.signOut();
           setErrorMsg('Authentication Error: This account is registered as a Student.');
           setLoading(false);
           return;
         }
         if (role === 'student' && userRole === 'mentor') {
+          await supabase.auth.signOut();
           setErrorMsg('Authentication Error: This account is registered as a Mentor. Please log in through the Mentor screen.');
           setLoading(false);
           return;
-        }
-
-        // Restore session in Supabase client so auth state listeners fire
-        if (data.session) {
-          await supabase.auth.setSession(data.session);
         }
 
         setSuccessMsg('Successfully Authenticated!');
@@ -134,8 +133,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         }, 800);
 
       } else {
-        // --- SIGNUP via backend API proxy → Supabase ---
-        // effectiveRole is 'mentor' if email ends with @snsgroups.com, else 'student'
+        // --- SIGNUP via Supabase native ---
         const metadata: any = {
           name: name.trim(),
           role: effectiveRole
@@ -153,7 +151,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           metadata.registerNo = registerNo.trim();
         }
 
-        const data = await apiSignup(emailTrim, password, { data: metadata });
+        const { data, error: signupError } = await supabase.auth.signUp({
+          email: emailTrim,
+          password: password,
+          options: {
+            data: metadata,
+          }
+        });
+        
+        if (signupError) throw signupError;
 
         // If signup was successful (new user), upsert profile into public.profiles
         if (data.user && data.user.identities && data.user.identities.length > 0) {
@@ -163,21 +169,25 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
               id: data.user.id,
               full_name: name.trim(),
               role: effectiveRole,
-              avatar_url: null,
-              updated_at: new Date().toISOString()
-            }, { onConflict: 'id' });
+              department: dept.trim() || null,
+              college: collegeName.trim() || null,
+              register_no: registerNo.trim() || null,
+              mentor_id: mentorName.trim() || null
+            });
 
           if (profileError) {
-            console.warn('Profile upsert failed:', profileError.message);
+            console.error('Failed to create profile record:', profileError);
           }
+        } else {
+          setErrorMsg('User already exists. Please log in.');
+          setLoading(false);
+          return;
         }
 
-        setSuccessMsg(
-          data.user?.identities?.length === 0
-            ? 'Account already exists. Try logging in!'
-            : `Registration Successful as ${effectiveRole === 'mentor' ? 'Mentor' : 'Student'}! Please check your email to verify your account.`
-        );
-        setIsLogin(true);
+        setSuccessMsg('Account created successfully!');
+        setTimeout(() => {
+          onAuthSuccess(data.session);
+        }, 800);
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'An error occurred during authentication.');

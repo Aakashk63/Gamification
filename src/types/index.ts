@@ -47,15 +47,17 @@ export interface PostComment {
 
 export interface Post {
   id: string;
-  authorName: string;
-  authorAvatar: string;
-  authorTagline: string;
-  createdAt: string;
+  author_id: string;
+  created_at: string;
   content: string;
-  image?: string;
-  video?: string; // Local base64 string or url for video uploads
+  image_url?: string | null;
+  video_url?: string | null; 
   likes: number;
   hasLiked?: boolean;
   comments: PostComment[];
-  shares: number;
+  profiles?: {
+    full_name: string;
+    avatar_url: string;
+    role: string;
+  };
 }

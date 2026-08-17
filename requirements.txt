@@ -1,7 +1,0 @@
-fastapi
-uvicorn[standard]
-motor
-pymongo
-supabase
-python-dotenv
-python-multipart

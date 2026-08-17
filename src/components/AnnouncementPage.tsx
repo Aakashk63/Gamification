@@ -5,10 +5,9 @@ import {
   apiGetPosts,
   apiCreatePost,
   apiDeletePost,
+  apiLikePost,
   apiAddComment,
-  apiDeleteComment,
-  type ApiPost,
-  type ApiComment
+  apiDeleteComment
 } from '../lib/api';
 import {
   ThumbsUp,
@@ -34,10 +33,11 @@ export const AnnouncementPage: React.FC = () => {
 
   const [isPostModalOpen, setIsPostModalOpen] = useState(false);
   const [postCaption, setPostCaption] = useState('');
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   
   // Media states: supports URL or local file upload
   const [mediaUrl, setMediaUrl] = useState('');
-  const [mediaFile, setMediaFile] = useState<{ name: string; url: string; type: 'image' | 'video' } | null>(null);
+  const [mediaFile, setMediaFile] = useState<{ name: string; url: string; type: 'image' | 'video'; file: File } | null>(null);
 
   const [commentInput, setCommentInput] = useState<{ [postId: string]: string }>({});
   const [openComments, setOpenComments] = useState<{ [postId: string]: boolean }>({});
@@ -52,33 +52,9 @@ export const AnnouncementPage: React.FC = () => {
   const fetchPosts = async () => {
     try {
       const data = await apiGetPosts();
-      
-      const { data: { session } } = await supabase.auth.getSession();
-      const currentUserId = session?.user?.id;
-      
-      // Fetch likes from Supabase
-      const { data: likesData, error: likesError } = await supabase
-        .from('announcement_likes')
-        .select('announcement_id, user_id');
-        
-      if (!likesError && likesData) {
-        // Map over posts and merge likes
-        const enrichedPosts = data.map((post: any) => {
-          const postLikes = likesData.filter((l) => l.announcement_id === post.id);
-          const hasLiked = postLikes.some((l) => l.user_id === currentUserId);
-          
-          return {
-            ...post,
-            likes: postLikes.length,
-            hasLiked
-          };
-        });
-        setPosts(enrichedPosts as unknown as Post[]);
-      } else {
-        setPosts(data as unknown as Post[]);
-      }
+      setPosts(data as unknown as Post[]);
     } catch (err) {
-      console.warn('Backend API connection failed.');
+      console.warn('Backend API connection failed.', err);
     } finally {
       setIsLoading(false);
     }
@@ -122,6 +98,9 @@ export const AnnouncementPage: React.FC = () => {
             : prev.avatar
         }));
       }
+      if (user) {
+        setCurrentUserId(user.id);
+      }
     });
   }, []);
 
@@ -147,7 +126,8 @@ export const AnnouncementPage: React.FC = () => {
       setMediaFile({
         name: file.name,
         url: base64Url,
-        type
+        type,
+        file
       });
       setMediaUrl(''); // Clear url input if file uploaded
     };
@@ -166,36 +146,47 @@ export const AnnouncementPage: React.FC = () => {
     e.preventDefault();
     if (!postCaption.trim()) return;
 
-    // Determine media content source (file upload overrides url text)
-    const finalImage = mediaFile?.type === 'image' ? mediaFile.url : mediaUrl.trim() ? mediaUrl.trim() : undefined;
-    const finalVideo = mediaFile?.type === 'video' ? mediaFile.url : undefined;
+    let finalImageUrl = mediaUrl.trim() ? mediaUrl.trim() : null;
+    let finalVideoUrl = null;
 
-    const newPost: Post = {
-      id: `post-${Date.now()}`,
-      authorName: studentProfile.name,
-      authorAvatar: studentProfile.avatar,
-      authorTagline: studentProfile.tagline,
-      createdAt: 'Just now',
-      content: postCaption,
-      image: finalImage,
-      video: finalVideo,
-      likes: 0,
-      hasLiked: false,
-      shares: 0,
-      comments: []
-    };
-
-    // Optimistic UI update
-    setPosts([newPost as unknown as Post, ...posts]);
-    setPostCaption('');
-    removeMedia();
-    setIsPostModalOpen(false);
+    if (mediaFile && mediaFile.file) {
+      const fileExt = mediaFile.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `public/${fileName}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('announcement_media')
+        .upload(filePath, mediaFile.file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+        
+      if (uploadError) {
+        console.error('Failed to upload media:', uploadError);
+        alert('Failed to upload media. Ensure the bucket exists and permissions are correct.');
+        return;
+      }
+      
+      const { data: publicUrlData } = supabase.storage
+        .from('announcement_media')
+        .getPublicUrl(filePath);
+        
+      if (mediaFile.type === 'image') {
+        finalImageUrl = publicUrlData.publicUrl;
+      } else {
+        finalVideoUrl = publicUrlData.publicUrl;
+      }
+    }
 
     try {
-      await apiCreatePost(newPost as unknown as ApiPost);
-      fetchPosts();
-    } catch (err) {
+      await apiCreatePost(postCaption, finalImageUrl, finalVideoUrl);
+      setPostCaption('');
+      removeMedia();
+      setIsPostModalOpen(false);
+      fetchPosts(); // Refresh from DB as source of truth
+    } catch (err: any) {
       console.error('Failed to save announcement to DB:', err);
+      alert(err.message || 'Failed to create announcement');
     }
   };
 
@@ -213,10 +204,6 @@ export const AnnouncementPage: React.FC = () => {
 
   // Like action
   const handleLikePost = async (postId: string) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const currentUserId = session?.user?.id;
-    if (!currentUserId) return;
-
     const targetPost = posts.find((p) => p.id === postId);
     if (!targetPost) return;
     const isLiking = !targetPost.hasLiked;
@@ -236,17 +223,7 @@ export const AnnouncementPage: React.FC = () => {
     );
 
     try {
-      if (isLiking) {
-        await supabase.from('announcement_likes').insert({
-          announcement_id: postId,
-          user_id: currentUserId
-        });
-      } else {
-        await supabase.from('announcement_likes')
-          .delete()
-          .eq('announcement_id', postId)
-          .eq('user_id', currentUserId);
-      }
+      await apiLikePost(postId, isLiking);
     } catch (err) {
       console.error('Failed to toggle like in Supabase:', err);
       fetchPosts(); // Revert on failure
@@ -281,7 +258,7 @@ export const AnnouncementPage: React.FC = () => {
     setCommentInput({ ...commentInput, [postId]: '' });
 
     try {
-      await apiAddComment(postId, newComment as ApiComment);
+      await apiAddComment(postId, text, studentProfile);
       fetchPosts();
     } catch (err) {
       console.error('Failed to add comment to DB:', err);
@@ -304,7 +281,7 @@ export const AnnouncementPage: React.FC = () => {
     );
 
     try {
-      await apiDeleteComment(postId, commentId);
+      await apiDeleteComment(commentId);
       fetchPosts();
     } catch (err) {
       console.error('Failed to delete comment from DB:', err);
@@ -317,11 +294,6 @@ export const AnnouncementPage: React.FC = () => {
     navigator.clipboard.writeText(shareUrl).then(() => {
       setCopySuccess(postId);
       setTimeout(() => setCopySuccess(null), 2500);
-
-      // Increment share count
-      setPosts(
-        posts.map((p) => (p.id === postId ? { ...p, shares: p.shares + 1 } : p))
-      );
     });
   };
 
@@ -471,7 +443,13 @@ export const AnnouncementPage: React.FC = () => {
             orderedPosts.map((post) => {
               const hasComments = openComments[post.id];
               const isSharedTarget = sharedPostId === post.id;
-              const isAuthor = post.authorName === studentProfile.name;
+              const isAuthor = post.author_id === currentUserId;
+              
+              const authorName = post.profiles?.full_name || 'Unknown User';
+              const authorAvatar = post.profiles?.avatar_url || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80';
+              const authorTagline = post.profiles?.role || 'Member';
+              const displayDate = new Date(post.created_at).toLocaleDateString();
+
               return (
                 <div
                   key={post.id}
@@ -493,22 +471,22 @@ export const AnnouncementPage: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <img
-                        src={post.authorAvatar}
-                        alt={post.authorName}
+                        src={authorAvatar}
+                        alt={authorName}
                         className="w-11 h-11 rounded-full object-cover ring-1 ring-white/10"
                       />
                       <div>
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs sm:text-sm font-black text-slate-100 uppercase tracking-wide">
-                            {post.authorName}
+                            {authorName}
                           </span>
                           <span className="text-[10px] text-slate-500">• 1st</span>
                         </div>
                         <p className="text-[10px] sm:text-xs text-slate-400 max-w-md line-clamp-1">
-                          {post.authorTagline}
+                          {authorTagline}
                         </p>
                         <span className="text-[10px] text-slate-500 font-medium block">
-                          {post.createdAt}
+                          {displayDate}
                         </span>
                       </div>
                     </div>
@@ -536,10 +514,10 @@ export const AnnouncementPage: React.FC = () => {
                   </div>
 
                   {/* Attached Image Media */}
-                  {post.image && (
+                  {post.image_url && (
                     <div className="rounded-2xl overflow-hidden border border-white/[0.06] bg-slate-900 max-h-[380px] flex items-center justify-center">
                       <img
-                        src={post.image}
+                        src={post.image_url}
                         alt="Attachment"
                         className="w-full h-full object-contain max-h-[380px]"
                       />
@@ -547,10 +525,10 @@ export const AnnouncementPage: React.FC = () => {
                   )}
 
                   {/* Attached Video Media */}
-                  {post.video && (
+                  {post.video_url && (
                     <div className="rounded-2xl overflow-hidden border border-white/[0.06] bg-slate-950 max-h-[380px] flex items-center justify-center">
                       <video
-                        src={post.video}
+                        src={post.video_url}
                         controls
                         className="w-full h-full object-contain max-h-[380px]"
                       />
@@ -566,8 +544,8 @@ export const AnnouncementPage: React.FC = () => {
                       <span>{post.likes} Likes</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span>{post.comments.length} Comments</span>
-                      <span>{post.shares} Shares</span>
+                      <span>{post.comments?.length || 0} Comments</span>
+                      <span>0 Shares</span>
                     </div>
                   </div>
 

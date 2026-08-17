@@ -50,18 +50,20 @@ export interface ApiComment {
 
 export interface ApiPost {
   id: string;
-  user_id: string;
-  authorName: string;
-  authorAvatar: string;
-  authorTagline: string;
-  created_at: string;
+  author_id: string;
   content: string;
-  image?: string;
-  video?: string;
-  likes: number; // dynamically calculated
-  hasLiked: boolean; // dynamically calculated
-  shares: number;
-  comments: ApiComment[]; // populated from relations
+  image_url?: string | null;
+  video_url?: string | null;
+  created_at: string;
+  updated_at?: string;
+  likes: number; 
+  hasLiked: boolean; 
+  comments: ApiComment[];
+  profiles?: {
+    full_name: string;
+    avatar_url: string;
+    role: string;
+  };
 }
 
 /** Fetch all announcement posts (sorted newest first) */
@@ -73,6 +75,7 @@ export async function apiGetPosts(): Promise<ApiPost[]> {
     .from('announcements')
     .select(`
       *,
+      profiles (full_name, avatar_url, role),
       announcement_comments (*),
       announcement_likes (user_id)
     `)
@@ -89,22 +92,32 @@ export async function apiGetPosts(): Promise<ApiPost[]> {
 }
 
 /** Create a new announcement post */
-export async function apiCreatePost(post: Partial<ApiPost>): Promise<any> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error("Not authenticated");
+export async function apiCreatePost(caption: string, imageUrl: string | null, videoUrl: string | null): Promise<any> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("User is not authenticated");
+
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('id, full_name, role, avatar_url')
+    .eq('id', user.id)
+    .single();
+
+  if (profileError || !profile) {
+    throw new Error("User profile not found");
+  }
+
+  if (!['mentor', 'admin'].includes(profile.role)) {
+    throw new Error("Only mentors and admins can create announcements");
+  }
 
   const { data, error } = await supabase
     .from('announcements')
-    .insert([{
-      user_id: session.user.id,
-      authorName: post.authorName,
-      authorAvatar: post.authorAvatar,
-      authorTagline: post.authorTagline,
-      content: post.content,
-      image: post.image,
-      video: post.video,
-      shares: 0
-    }])
+    .insert({
+      author_id: user.id,
+      content: caption,
+      image_url: imageUrl ?? null,
+      video_url: videoUrl ?? null,
+    })
     .select()
     .single();
 
