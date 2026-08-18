@@ -141,7 +141,6 @@ export const ProfilePage: React.FC = () => {
               <ModelViewer 
                 modelPath={STORE_CATALOG.find(i => i.id === profile.base_character)?.modelPath || '/models/wall-e.glb'} 
                 className="w-full h-full" 
-                isPreview={true}
               />
               <button 
                 onClick={() => navigate('/avatar-store')}

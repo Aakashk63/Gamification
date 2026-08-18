@@ -13,66 +13,59 @@ function Model({ path }: { path: string }) {
     if (!scene) return null;
     const cloned = scene.clone();
     
-    // Calculate bounding box correctly for all meshes
-    const box = new THREE.Box3();
-    cloned.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
-        box.expandByObject(child);
+    // Apply model-specific scaling and positioning to guarantee uniform size
+    // SkinnedMesh bounding boxes are often inaccurate, so manual tuning is safest.
+    if (path.includes('spider-man')) {
+      cloned.scale.setScalar(0.015);
+      cloned.position.set(0, -1.2, 0);
+    } else if (path.includes('batman')) {
+      cloned.scale.setScalar(0.04);
+      cloned.position.set(0, -1.2, 0);
+    } else {
+      // Default auto-scaling for non-skinned meshes like Wall-E
+      const box = new THREE.Box3();
+      cloned.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          box.expandByObject(child);
+        }
+      });
+      if (!box.isEmpty()) {
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = 2.2 / maxDim;
+        cloned.scale.setScalar(scale);
+        cloned.position.x = -center.x * scale;
+        cloned.position.y = -box.min.y * scale - 1.2; 
+        cloned.position.z = -center.z * scale;
       }
-    });
-    
-    // If box is empty (e.g. no meshes), provide fallback
-    if (box.isEmpty()) {
-      box.set(new THREE.Vector3(-1, -1, -1), new THREE.Vector3(1, 1, 1));
     }
     
-    const size = box.getSize(new THREE.Vector3());
-    const center = box.getCenter(new THREE.Vector3());
-    
-    const maxDim = Math.max(size.x, size.y, size.z);
-    // Target size for the model to fit well in our view
-    const targetSize = 2.5; 
-    const scale = targetSize / maxDim;
-    
-    cloned.scale.setScalar(scale);
-    
-    // Center the model vertically so it sits on the ground
-    cloned.position.x = -center.x * scale;
-    cloned.position.y = -box.min.y * scale; // Bottom of model at y=0
-    cloned.position.z = -center.z * scale;
-    
     return cloned;
-  }, [scene]);
+  }, [scene, path]);
 
   return clonedScene ? <primitive object={clonedScene} /> : null;
 }
 
 // Custom camera adjuster
-function CameraSetup({ isPreview }: { isPreview?: boolean }) {
+function CameraSetup() {
   const { camera } = useThree();
   useEffect(() => {
-    if (isPreview) {
-      // Move camera to head/chest height (2.0) and get very close
-      camera.position.set(0, 2.0, 1.8);
-      camera.lookAt(0, 2.0, 0);
-    } else {
-      camera.position.set(0, 1.25, 5.5);
-      camera.lookAt(0, 1.25, 0);
-    }
-  }, [camera, isPreview]);
+    // Both views now show the complete model
+    camera.position.set(0, 0, 5.5);
+    camera.lookAt(0, 0, 0);
+  }, [camera]);
   return null;
 }
 
 interface ModelViewerProps {
   modelPath: string;
   className?: string;
-  isPreview?: boolean;
 }
 
 export const ModelViewer: React.FC<ModelViewerProps> = ({ 
   modelPath, 
-  className = "",
-  isPreview = false
+  className = ""
 }) => {
   return (
     <div className={`relative ${className}`}>
@@ -83,7 +76,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         </div>
       }>
         <Canvas shadows dpr={[1, 2]}>
-          <CameraSetup isPreview={isPreview} />
+          <CameraSetup />
           
           <ambientLight intensity={0.5} />
           <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={1} castShadow />
@@ -101,7 +94,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
             autoRotate={false}
             minPolarAngle={Math.PI / 3}
             maxPolarAngle={Math.PI / 1.8}
-            target={isPreview ? [0, 2.0, 0] : [0, 1.25, 0]}
+            target={[0, 0, 0]}
           />
           <Preload all />
         </Canvas>
