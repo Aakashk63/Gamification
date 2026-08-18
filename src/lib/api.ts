@@ -76,7 +76,10 @@ export async function apiGetPosts(): Promise<ApiPost[]> {
     .select(`
       *,
       profiles (full_name, avatar_url, role),
-      announcement_comments (*),
+      announcement_comments (
+        *,
+        profiles (full_name, avatar_url)
+      ),
       announcement_likes (user_id)
     `)
     .order('created_at', { ascending: false });
@@ -88,8 +91,8 @@ export async function apiGetPosts(): Promise<ApiPost[]> {
     comments: (post.announcement_comments || []).map((c: any) => ({
       ...c,
       createdAt: c.created_at || c.createdAt,
-      authorName: c.author_name || c.authorName,
-      authorAvatar: c.author_avatar || c.authorAvatar
+      authorName: c.profiles?.full_name || 'Unknown User',
+      authorAvatar: c.profiles?.avatar_url || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'
     })),
     likes: post.announcement_likes?.length || 0,
     hasLiked: post.announcement_likes?.some((like: any) => like.user_id === currentUserId) || false,
@@ -160,17 +163,15 @@ export async function apiLikePost(postId: string, isLiking: boolean): Promise<vo
 }
 
 /** Add a comment to a post */
-export async function apiAddComment(postId: string, content: string, profile: any): Promise<any> {
+export async function apiAddComment(postId: string, content: string, _profile?: any): Promise<any> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Not authenticated");
 
   const { data, error } = await supabase
     .from('announcement_comments')
     .insert([{
-      post_id: postId,
+      announcement_id: postId,
       user_id: session.user.id,
-      author_name: profile.name,
-      author_avatar: profile.avatar,
       content: content
     }])
     .select()

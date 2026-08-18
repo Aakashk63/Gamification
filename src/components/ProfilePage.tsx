@@ -124,25 +124,25 @@ export const ProfilePage: React.FC = () => {
   const leetCodeUsername = extractUsername(leetcodeUrl, 'leetcode');
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
-      <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-black font-heading tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400">
-          PROFILE SETTINGS
+    <div className="max-w-6xl mx-auto w-full h-[calc(100vh-6rem)] flex flex-col animate-fade-in overflow-hidden">
+      <div className="flex items-center gap-3 shrink-0 mb-6">
+        <h1 className="text-2xl font-black font-heading tracking-tight text-white flex items-center gap-1.5">
+          PROFILE <span className="text-emerald-400">SETTINGS</span>
         </h1>
         <div className="h-px flex-1 bg-gradient-to-r from-emerald-500/20 to-transparent"></div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1 min-h-0">
         {/* LEFT COLUMN: Form */}
-        <div className="p-8 rounded-3xl bg-[#111622]/90 border border-white/[0.08] shadow-xl space-y-8">
-          <div className="space-y-1">
+        <div className="p-8 rounded-3xl bg-[#111622]/90 border border-white/[0.08] shadow-xl flex flex-col min-h-0">
+          <div className="space-y-1 shrink-0 mb-8">
             <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
               Personal Information
             </h2>
             <p className="text-sm text-slate-400">Update your external profile links.</p>
           </div>
 
-          <div className="space-y-5">
+          <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-6">
             {/* Name */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">
@@ -326,8 +326,8 @@ export const ProfilePage: React.FC = () => {
         </div>
 
         {/* RIGHT COLUMN: 3D Avatar Static Preview */}
-        <div className="w-full lg:w-1/2 flex items-center justify-center">
-          <div className="relative w-64 h-80 rounded-3xl bg-[#1a1525] border border-white/[0.08] shadow-2xl flex items-center justify-center">
+        <div className="w-full h-full flex items-center justify-center">
+          <div className="relative w-72 h-[26rem] rounded-3xl bg-[#1a1525] border border-white/[0.08] shadow-2xl flex items-center justify-center">
             
             <ModelViewer 
               modelPath={STORE_CATALOG.find(i => i.id === profile.base_character)?.modelPath || '/models/wall-e.glb'} 
