@@ -12,7 +12,20 @@ function Model({ path }: { path: string }) {
   const clonedScene = React.useMemo(() => {
     if (!scene) return null;
     const cloned = scene.clone();
-    const box = new THREE.Box3().setFromObject(cloned);
+    
+    // Calculate bounding box correctly for all meshes
+    const box = new THREE.Box3();
+    cloned.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        box.expandByObject(child);
+      }
+    });
+    
+    // If box is empty (e.g. no meshes), provide fallback
+    if (box.isEmpty()) {
+      box.set(new THREE.Vector3(-1, -1, -1), new THREE.Vector3(1, 1, 1));
+    }
+    
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
     
@@ -39,8 +52,9 @@ function CameraSetup({ isPreview }: { isPreview?: boolean }) {
   const { camera } = useThree();
   useEffect(() => {
     if (isPreview) {
-      camera.position.set(0, 1.8, 2.5);
-      camera.lookAt(0, 1.8, 0);
+      // Move camera to head/chest height (2.0) and get very close
+      camera.position.set(0, 2.0, 1.8);
+      camera.lookAt(0, 2.0, 0);
     } else {
       camera.position.set(0, 1.25, 5.5);
       camera.lookAt(0, 1.25, 0);
@@ -52,14 +66,12 @@ function CameraSetup({ isPreview }: { isPreview?: boolean }) {
 interface ModelViewerProps {
   modelPath: string;
   className?: string;
-  autoRotate?: boolean;
   isPreview?: boolean;
 }
 
 export const ModelViewer: React.FC<ModelViewerProps> = ({ 
   modelPath, 
   className = "",
-  autoRotate = false,
   isPreview = false
 }) => {
   return (
@@ -86,11 +98,10 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
           <OrbitControls 
             enableZoom={false} 
             enablePan={false}
-            autoRotate={autoRotate}
-            autoRotateSpeed={2}
+            autoRotate={false}
             minPolarAngle={Math.PI / 3}
             maxPolarAngle={Math.PI / 1.8}
-            target={isPreview ? [0, 1.8, 0] : [0, 1.25, 0]}
+            target={isPreview ? [0, 2.0, 0] : [0, 1.25, 0]}
           />
           <Preload all />
         </Canvas>

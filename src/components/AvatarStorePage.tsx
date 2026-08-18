@@ -194,7 +194,7 @@ export const AvatarStorePage: React.FC = () => {
                     
                     <div className={`w-full h-36 rounded-xl ${item.color || 'bg-slate-800'} flex items-center justify-center shrink-0 shadow-inner overflow-hidden relative`}>
                       {item.category === 'character' ? (
-                        <ModelViewer modelPath={item.modelPath} className="w-full h-full" autoRotate={false} isPreview={true} />
+                        <ModelViewer modelPath={item.modelPath} className="w-full h-full" isPreview={true} />
                       ) : (
                         IconComp && <IconComp className="w-10 h-10 text-white/90" />
                       )}
@@ -261,7 +261,7 @@ export const AvatarStorePage: React.FC = () => {
             {/* Render Character and Equipped Items overlay */}
             <div className="flex-1 flex items-center justify-center relative mt-8">
               <div className="relative w-full h-80 drop-shadow-2xl flex items-center justify-center">
-                 <ModelViewer modelPath={currentModelPath} className="w-full h-full" autoRotate />
+                 <ModelViewer modelPath={currentModelPath} className="w-full h-full" />
                  
                  {/* Visual list of equipped items over the character for context */}
                  <div className="absolute -right-4 top-4 flex flex-col gap-2">

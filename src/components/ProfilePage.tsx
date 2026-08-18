@@ -140,8 +140,7 @@ export const ProfilePage: React.FC = () => {
             <div className="relative w-24 h-24 rounded-full bg-[#1a1525] border-2 border-emerald-500/50 shadow-lg flex items-center justify-center overflow-hidden shrink-0">
               <ModelViewer 
                 modelPath={STORE_CATALOG.find(i => i.id === profile.base_character)?.modelPath || '/models/wall-e.glb'} 
-                className="w-full h-full scale-[1.5] translate-y-1" 
-                autoRotate 
+                className="w-full h-full" 
                 isPreview={true}
               />
               <button 
