@@ -48,6 +48,7 @@ export function App() {
         <Route path="/announcement" element={<Dashboard key={session.user.id} />} />
         <Route path="/task" element={<Dashboard key={session.user.id} />} />
         <Route path="/redeem" element={<Dashboard key={session.user.id} />} />
+        <Route path="/profile" element={<Dashboard key={session.user.id} />} />
         <Route path="/feedback" element={<Dashboard key={session.user.id} />} />
         {/* Catch-all */}
         <Route path="*" element={<Navigate to="/leaderboard" replace />} />

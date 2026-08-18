@@ -219,3 +219,63 @@ export async function apiSubmitFeedback(feedback: ApiFeedback): Promise<{ succes
   if (error) throw error;
   return { success: true };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROFILE APIS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ApiProfile {
+  id: string;
+  full_name: string;
+  role: string;
+  avatar_url: string;
+  linkedin_url?: string;
+  leetcode_url?: string;
+  team_points?: number; 
+  email?: string; 
+  mentor_id?: string;
+  mentor_name?: string;
+}
+
+export async function apiGetProfile(): Promise<ApiProfile> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  // Attempt to fetch profile from DB, but don't fail if it doesn't exist yet
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+
+  const meta = user.user_metadata || {};
+
+  return {
+    id: user.id,
+    full_name: profile?.full_name || meta.name || 'Anonymous User',
+    role: profile?.role || meta.role || 'student',
+    avatar_url: profile?.avatar_url || (meta.role === 'mentor'
+        ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'
+        : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'),
+    linkedin_url: profile?.linkedin_url || '',
+    leetcode_url: profile?.leetcode_url || '',
+    email: user.email,
+    mentor_name: profile?.mentor_name || meta.mentorName || 'No Mentor Assigned',
+    team_points: 1000 
+  };
+}
+
+export async function apiUpdateProfileUrls(linkedinUrl: string, leetcodeUrl: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      linkedin_url: linkedinUrl,
+      leetcode_url: leetcodeUrl
+    })
+    .eq('id', user.id);
+
+  if (error) throw error;
+}

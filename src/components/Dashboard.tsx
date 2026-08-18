@@ -4,6 +4,7 @@ import { Leaderboard } from './Leaderboard';
 import { MentorVSBattle } from './MentorVSBattle';
 import { AnnouncementPage } from './AnnouncementPage';
 import { FeedbackForm } from './FeedbackForm';
+import { ProfilePage } from './ProfilePage';
 import { INITIAL_TEAMS } from '../data/mockData';
 import { supabase } from '../lib/supabase';
 import { apiGetDashboardStats, type ApiDashboardStats } from '../lib/api';
@@ -31,6 +32,7 @@ const NAV_ITEMS = [
   { id: 'announcement', path: '/announcement', label: 'Announcement', icon: Megaphone },
   { id: 'task', path: '/task', label: 'Task', icon: CheckSquare },
   { id: 'redeem', path: '/redeem', label: 'Redeem Point', icon: Coins },
+  { id: 'profile', path: '/profile', label: 'Profile', icon: Users },
   { id: 'feedback', path: '/feedback', label: 'Feedback', icon: MessageSquare },
 ];
 
@@ -303,6 +305,8 @@ export const Dashboard: React.FC = () => {
               </div>
             ) : activeTab === 'announcement' ? (
               <AnnouncementPage />
+            ) : activeTab === 'profile' ? (
+              <ProfilePage />
             ) : activeTab === 'feedback' ? (
               <FeedbackForm />
             ) : (
