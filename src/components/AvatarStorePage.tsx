@@ -192,8 +192,12 @@ export const AvatarStorePage: React.FC = () => {
                       </div>
                     )}
                     
-                    <div className={`w-20 h-20 rounded-xl ${item.color || 'bg-slate-800'} flex items-center justify-center shrink-0 shadow-inner`}>
-                      {IconComp && <IconComp className="w-10 h-10 text-white/90" />}
+                    <div className={`w-full h-36 rounded-xl ${item.color || 'bg-slate-800'} flex items-center justify-center shrink-0 shadow-inner overflow-hidden relative`}>
+                      {item.category === 'character' ? (
+                        <ModelViewer modelPath={item.modelPath} className="w-full h-full" autoRotate={false} isPreview={true} />
+                      ) : (
+                        IconComp && <IconComp className="w-10 h-10 text-white/90" />
+                      )}
                     </div>
                     
                     <div className="text-center w-full">

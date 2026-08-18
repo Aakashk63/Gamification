@@ -8,38 +8,44 @@ import * as THREE from 'three';
 function Model({ path }: { path: string }) {
   const { scene } = useGLTF(path);
   
-  // Center and scale the model based on its bounding box
-  useEffect(() => {
-    if (scene) {
-      const box = new THREE.Box3().setFromObject(scene);
-      const size = box.getSize(new THREE.Vector3());
-      const center = box.getCenter(new THREE.Vector3());
-      
-      const maxDim = Math.max(size.x, size.y, size.z);
-      // Target size for the model to fit well in our view
-      const targetSize = 2.5; 
-      const scale = targetSize / maxDim;
-      
-      scene.scale.setScalar(scale);
-      
-      // Center the model vertically so it sits on the ground
-      scene.position.x = -center.x * scale;
-      scene.position.y = -box.min.y * scale; // Bottom of model at y=0
-      scene.position.z = -center.z * scale;
-      
-    }
-  }, [scene, path]);
+  // Clone, center and scale the model based on its bounding box
+  const clonedScene = React.useMemo(() => {
+    if (!scene) return null;
+    const cloned = scene.clone();
+    const box = new THREE.Box3().setFromObject(cloned);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    
+    const maxDim = Math.max(size.x, size.y, size.z);
+    // Target size for the model to fit well in our view
+    const targetSize = 2.5; 
+    const scale = targetSize / maxDim;
+    
+    cloned.scale.setScalar(scale);
+    
+    // Center the model vertically so it sits on the ground
+    cloned.position.x = -center.x * scale;
+    cloned.position.y = -box.min.y * scale; // Bottom of model at y=0
+    cloned.position.z = -center.z * scale;
+    
+    return cloned;
+  }, [scene]);
 
-  return <primitive object={scene} />;
+  return clonedScene ? <primitive object={clonedScene} /> : null;
 }
 
 // Custom camera adjuster
-function CameraSetup() {
+function CameraSetup({ isPreview }: { isPreview?: boolean }) {
   const { camera } = useThree();
   useEffect(() => {
-    camera.position.set(0, 1.5, 4);
-    camera.lookAt(0, 1, 0);
-  }, [camera]);
+    if (isPreview) {
+      camera.position.set(0, 1.8, 2.5);
+      camera.lookAt(0, 1.8, 0);
+    } else {
+      camera.position.set(0, 1.25, 5.5);
+      camera.lookAt(0, 1.25, 0);
+    }
+  }, [camera, isPreview]);
   return null;
 }
 
@@ -47,12 +53,14 @@ interface ModelViewerProps {
   modelPath: string;
   className?: string;
   autoRotate?: boolean;
+  isPreview?: boolean;
 }
 
 export const ModelViewer: React.FC<ModelViewerProps> = ({ 
   modelPath, 
   className = "",
-  autoRotate = false
+  autoRotate = false,
+  isPreview = false
 }) => {
   return (
     <div className={`relative ${className}`}>
@@ -63,7 +71,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         </div>
       }>
         <Canvas shadows dpr={[1, 2]}>
-          <CameraSetup />
+          <CameraSetup isPreview={isPreview} />
           
           <ambientLight intensity={0.5} />
           <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={1} castShadow />
@@ -82,6 +90,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
             autoRotateSpeed={2}
             minPolarAngle={Math.PI / 3}
             maxPolarAngle={Math.PI / 1.8}
+            target={isPreview ? [0, 1.8, 0] : [0, 1.25, 0]}
           />
           <Preload all />
         </Canvas>
