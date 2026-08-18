@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { STORE_CATALOG, type StoreItem, type ItemCategory } from '../data/storeCatalog';
 import { apiGetProfile, apiPurchaseItem, apiUpdateAvatarState, type ApiProfile } from '../lib/api';
-import { ArrowLeft, Coins, Lock, Loader2, Undo, ShoppingCart, User, HelpCircle } from 'lucide-react';
+import { ArrowLeft, Coins, Lock, Loader2, Undo, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as Icons from 'lucide-react';
+import { ModelViewer } from './ModelViewer';
 
 export const AvatarStorePage: React.FC = () => {
   const navigate = useNavigate();
@@ -12,8 +13,8 @@ export const AvatarStorePage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   
   // Local state
-  const [activeCategory, setActiveCategory] = useState<ItemCategory>('head');
-  const [baseCharacter, setBaseCharacter] = useState<'boy_base' | 'girl_base'>('boy_base');
+  const [activeCategory, setActiveCategory] = useState<ItemCategory>('character');
+  const [baseCharacter, setBaseCharacter] = useState<string>('wall-e');
   const [equippedItems, setEquippedItems] = useState<string[]>([]);
   
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
@@ -51,7 +52,7 @@ export const AvatarStorePage: React.FC = () => {
 
   const handleReset = () => {
     if (profile) {
-      setBaseCharacter((profile.base_character as any) || 'boy_base');
+      setBaseCharacter((profile.base_character as any) || 'wall-e');
       setEquippedItems(profile.equipped_items || []);
     }
   };
@@ -84,6 +85,10 @@ export const AvatarStorePage: React.FC = () => {
   };
 
   const toggleEquip = (item: StoreItem) => {
+    if (item.category === 'character') {
+      setBaseCharacter(prev => prev === item.id ? 'wall-e' : item.id);
+      return;
+    }
     setEquippedItems((prev) => {
       if (prev.includes(item.id)) {
         return prev.filter((id) => id !== item.id);
@@ -105,13 +110,11 @@ export const AvatarStorePage: React.FC = () => {
   const unlockedItems = profile.unlocked_items || [];
 
   const CATEGORIES = [
-    { id: 'head', label: 'Hats', icon: User },
-    { id: 'torso', label: 'Shirts', icon: ShoppingCart },
-    { id: 'accessory', label: 'Accessories', icon: HelpCircle },
-    { id: 'pet', label: 'Pets', icon: HelpCircle }
+    { id: 'character', label: 'Models', icon: User }
   ] as const;
 
   const equippedDetails = equippedItems.map(id => STORE_CATALOG.find(i => i.id === id)).filter(Boolean) as StoreItem[];
+  const currentModelPath = STORE_CATALOG.find(i => i.id === baseCharacter)?.modelPath || '/models/wall-e.glb';
 
   return (
     <div className="fixed inset-0 bg-[#070b14] flex flex-col font-sans overflow-hidden">
@@ -173,7 +176,7 @@ export const AvatarStorePage: React.FC = () => {
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
               {STORE_CATALOG.filter(i => i.category === activeCategory).map(item => {
                 const isUnlocked = unlockedItems.includes(item.id);
-                const isEquipped = equippedItems.includes(item.id);
+                const isEquipped = item.category === 'character' ? baseCharacter === item.id : equippedItems.includes(item.id);
                 const isLockedByLevel = level < item.requiredLevel;
                 const IconComp = (Icons as any)[item.icon || 'Circle'];
 
@@ -253,8 +256,8 @@ export const AvatarStorePage: React.FC = () => {
 
             {/* Render Character and Equipped Items overlay */}
             <div className="flex-1 flex items-center justify-center relative mt-8">
-              <div className="relative w-48 h-64 lg:w-64 lg:h-80 drop-shadow-2xl flex items-center justify-center">
-                 <img src="/avatar_white.png" alt="Base Avatar" className="max-w-full max-h-full object-contain drop-shadow-2xl" onError={(e) => { e.currentTarget.src = 'https://i.imgur.com/8Qj8M4Z.png'; }} />
+              <div className="relative w-full h-80 drop-shadow-2xl flex items-center justify-center">
+                 <ModelViewer modelPath={currentModelPath} className="w-full h-full" autoRotate />
                  
                  {/* Visual list of equipped items over the character for context */}
                  <div className="absolute -right-4 top-4 flex flex-col gap-2">

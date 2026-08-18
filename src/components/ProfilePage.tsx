@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { apiGetProfile, apiUpdateProfileUrls, type ApiProfile } from '../lib/api';
 import { Share2, CheckCircle, Save, Loader2, Link2, Pencil } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { ModelViewer } from './ModelViewer';
+import { STORE_CATALOG } from '../data/storeCatalog';
 
 export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
@@ -327,11 +329,10 @@ export const ProfilePage: React.FC = () => {
         <div className="w-full lg:w-1/2 flex items-center justify-center">
           <div className="relative w-64 h-80 rounded-3xl bg-[#1a1525] border border-white/[0.08] shadow-2xl flex items-center justify-center">
             
-            <img 
-              src="/avatar_white.png" 
-              alt="Avatar" 
-              className="w-48 h-64 object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-500"
-              onError={(e) => { e.currentTarget.src = 'https://i.imgur.com/8Qj8M4Z.png'; }}
+            <ModelViewer 
+              modelPath={STORE_CATALOG.find(i => i.id === profile.base_character)?.modelPath || '/models/wall-e.glb'} 
+              className="w-full h-full" 
+              autoRotate 
             />
 
             {/* Edit Avatar Overlay Button (White Circle) */}
