@@ -235,6 +235,11 @@ export interface ApiProfile {
   email?: string; 
   mentor_id?: string;
   mentor_name?: string;
+  level?: number;
+  coins?: number;
+  base_character?: string;
+  equipped_items?: string[];
+  unlocked_items?: string[];
 }
 
 export async function apiGetProfile(): Promise<ApiProfile> {
@@ -261,8 +266,55 @@ export async function apiGetProfile(): Promise<ApiProfile> {
     leetcode_url: profile?.leetcode_url || '',
     email: user.email,
     mentor_name: profile?.mentor_name || meta.mentorName || 'No Mentor Assigned',
-    team_points: 1000 
+    team_points: profile?.team_points || 0,
+    level: profile?.level || 1,
+    coins: profile?.coins || 1000,
+    base_character: profile?.base_character || 'boy_base',
+    equipped_items: profile?.equipped_items || [],
+    unlocked_items: profile?.unlocked_items || [],
   };
+}
+
+export async function apiUpdateAvatarState(base_character: string, equipped_items: string[]): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ base_character, equipped_items })
+    .eq('id', user.id);
+
+  if (error) throw error;
+}
+
+export async function apiPurchaseItem(itemId: string, cost: number): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  // Fetch current coins and unlocked items to prevent race conditions or cheating
+  const { data: profile } = await supabase.from('profiles').select('coins, unlocked_items').eq('id', user.id).single();
+  if (!profile) throw new Error("Profile not found");
+
+  const currentCoins = profile.coins || 0;
+  const currentUnlocked = profile.unlocked_items || [];
+
+  if (currentCoins < cost) {
+    throw new Error("Not enough coins");
+  }
+
+  if (currentUnlocked.includes(itemId)) {
+    throw new Error("Item already owned");
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ 
+      coins: currentCoins - cost,
+      unlocked_items: [...currentUnlocked, itemId]
+    })
+    .eq('id', user.id);
+
+  if (error) throw error;
 }
 
 export async function apiUpdateProfileUrls(linkedinUrl: string, leetcodeUrl: string): Promise<void> {
