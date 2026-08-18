@@ -132,14 +132,34 @@ export const ProfilePage: React.FC = () => {
         <div className="h-px flex-1 bg-gradient-to-r from-emerald-500/20 to-transparent"></div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1 min-h-0">
-        {/* LEFT COLUMN: Form */}
-        <div className="p-8 rounded-3xl bg-[#111622]/90 border border-white/[0.08] shadow-xl flex flex-col min-h-0">
-          <div className="space-y-1 shrink-0 mb-8">
-            <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-              Personal Information
-            </h2>
-            <p className="text-sm text-slate-400">Update your external profile links.</p>
+      <div className="flex justify-center flex-1 min-h-0">
+        {/* CENTER COLUMN: Form */}
+        <div className="w-full max-w-2xl p-8 rounded-3xl bg-[#111622]/90 border border-white/[0.08] shadow-xl flex flex-col min-h-0 relative">
+          
+          <div className="flex items-center gap-6 shrink-0 mb-8">
+            <div className="relative w-24 h-24 rounded-full bg-[#1a1525] border-2 border-emerald-500/50 shadow-lg flex items-center justify-center overflow-hidden shrink-0">
+              <ModelViewer 
+                modelPath={STORE_CATALOG.find(i => i.id === profile.base_character)?.modelPath || '/models/wall-e.glb'} 
+                className="w-full h-full scale-[1.5] translate-y-1" 
+                autoRotate 
+                isPreview={true}
+              />
+              <button 
+                onClick={() => navigate('/avatar-store')}
+                className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white cursor-pointer z-20"
+                title="Edit Avatar & Shop"
+              >
+                <Pencil className="w-5 h-5 mb-1" />
+                <span className="text-[10px] font-bold">EDIT</span>
+              </button>
+            </div>
+            
+            <div className="space-y-1">
+              <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                Personal Information
+              </h2>
+              <p className="text-sm text-slate-400">Update your external profile links and avatar.</p>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-6">
@@ -322,32 +342,6 @@ export const ProfilePage: React.FC = () => {
                 </>
               )}
             </button>
-          </div>
-        </div>
-
-        {/* RIGHT COLUMN: 3D Avatar Static Preview */}
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="relative w-72 h-[26rem] rounded-3xl bg-[#1a1525] border border-white/[0.08] shadow-2xl flex items-center justify-center">
-            
-            <ModelViewer 
-              modelPath={STORE_CATALOG.find(i => i.id === profile.base_character)?.modelPath || '/models/wall-e.glb'} 
-              className="w-full h-full" 
-              autoRotate 
-            />
-
-            {/* Edit Avatar Overlay Button (White Circle) */}
-            <button 
-              onClick={() => navigate('/avatar-store')}
-              className="absolute -top-4 -right-4 z-30 bg-white hover:bg-slate-200 text-slate-900 w-12 h-12 rounded-full shadow-lg transition-transform hover:scale-110 flex items-center justify-center"
-              title="Edit Avatar & Shop"
-            >
-              <Pencil className="w-5 h-5 fill-current" />
-            </button>
-
-            {/* "You" Label like reference image */}
-            <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#2a1b2c] text-white text-xs font-bold px-4 py-1.5 rounded-full border border-white/5 shadow-md">
-              You
-            </div>
           </div>
         </div>
       </div>
