@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiGetProfile, apiUpdateProfileUrls, type ApiProfile } from '../lib/api';
-import { Share2, CheckCircle, Save, Loader2, Link2 } from 'lucide-react';
+import { Share2, CheckCircle, Save, Loader2, Link2, Pencil } from 'lucide-react';
 
 export const ProfilePage: React.FC = () => {
   const [profile, setProfile] = useState<ApiProfile | null>(null);
@@ -12,6 +12,11 @@ export const ProfilePage: React.FC = () => {
   const [linkedinUrl, setLinkedinUrl] = useState('');
   const [leetcodeUrl, setLeetcodeUrl] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [copied, setCopied] = useState(false);
+  
+  // Edit mode state
+  const [isEditingLinkedin, setIsEditingLinkedin] = useState(false);
+  const [isEditingLeetcode, setIsEditingLeetcode] = useState(false);
 
   useEffect(() => {
     fetchProfile();
@@ -86,12 +91,21 @@ export const ProfilePage: React.FC = () => {
     try {
       await apiUpdateProfileUrls(linkedinUrl.trim(), leetcodeUrl.trim());
       setSaveSuccess(true);
+      setIsEditingLinkedin(false);
+      setIsEditingLeetcode(false);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to save profile.');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleShare = () => {
+    // Copy the current URL to clipboard
+    navigator.clipboard.writeText(window.location.href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   if (loading || !profile) {
@@ -153,16 +167,28 @@ export const ProfilePage: React.FC = () => {
 
             {/* LinkedIn */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-emerald-400/80 uppercase tracking-wider ml-1 flex items-center gap-1.5">
-                <Link2 className="w-3.5 h-3.5" />
-                LinkedIn ID
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-emerald-400/80 uppercase tracking-wider ml-1 flex items-center gap-1.5">
+                  <Link2 className="w-3.5 h-3.5" />
+                  LinkedIn ID
+                </label>
+                <button
+                  onClick={() => setIsEditingLinkedin(!isEditingLinkedin)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                  title="Edit LinkedIn URL"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              </div>
               <input
                 type="text"
+                disabled={!isEditingLinkedin}
                 value={linkedinUrl}
                 onChange={(e) => setLinkedinUrl(e.target.value)}
                 placeholder="https://linkedin.com/in/yourprofile"
-                className="w-full bg-[#1A2235] border border-emerald-500/30 rounded-xl px-4 py-3 text-sm text-emerald-100 placeholder:text-emerald-500/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                className={`w-full bg-[#1A2235] border border-emerald-500/30 rounded-xl px-4 py-3 text-sm text-emerald-100 placeholder:text-emerald-500/30 focus:outline-none transition-all ${
+                  isEditingLinkedin ? 'focus:ring-2 focus:ring-emerald-500/50' : 'opacity-70 cursor-not-allowed'
+                }`}
               />
               {linkedinUrl.trim() && (
                 <div className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold px-2">
@@ -180,16 +206,28 @@ export const ProfilePage: React.FC = () => {
 
             {/* LeetCode */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-indigo-400/80 uppercase tracking-wider ml-1 flex items-center gap-1.5">
-                <Link2 className="w-3.5 h-3.5" />
-                LeetCode ID
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-indigo-400/80 uppercase tracking-wider ml-1 flex items-center gap-1.5">
+                  <Link2 className="w-3.5 h-3.5" />
+                  LeetCode ID
+                </label>
+                <button
+                  onClick={() => setIsEditingLeetcode(!isEditingLeetcode)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
+                  title="Edit LeetCode URL"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              </div>
               <input
                 type="text"
+                disabled={!isEditingLeetcode}
                 value={leetcodeUrl}
                 onChange={(e) => setLeetcodeUrl(e.target.value)}
                 placeholder="https://leetcode.com/yourprofile"
-                className="w-full bg-[#1A2235] border border-indigo-500/30 rounded-xl px-4 py-3 text-sm text-indigo-100 placeholder:text-indigo-500/30 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                className={`w-full bg-[#1A2235] border border-indigo-500/30 rounded-xl px-4 py-3 text-sm text-indigo-100 placeholder:text-indigo-500/30 focus:outline-none transition-all ${
+                  isEditingLeetcode ? 'focus:ring-2 focus:ring-indigo-500/50' : 'opacity-70 cursor-not-allowed'
+                }`}
               />
               {leetcodeUrl.trim() && (
                 <div className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold px-2">
@@ -246,9 +284,21 @@ export const ProfilePage: React.FC = () => {
           )}
 
           <div className="pt-4 flex items-center justify-between">
-            <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-white/[0.06] hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer text-sm font-semibold">
-              <Share2 className="w-4 h-4" />
-              Share Profile
+            <button 
+              onClick={handleShare}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-white/[0.06] hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer text-sm font-semibold"
+            >
+              {copied ? (
+                <>
+                  <CheckCircle className="w-4 h-4 text-emerald-400" />
+                  <span className="text-emerald-400">Link Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-4 h-4" />
+                  Share Profile
+                </>
+              )}
             </button>
 
             <button

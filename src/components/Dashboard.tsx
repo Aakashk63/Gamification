@@ -24,7 +24,8 @@ import {
   HeartHandshake,
   Users,
   Activity,
-  Zap
+  Zap,
+  Pencil
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -44,6 +45,7 @@ export const Dashboard: React.FC = () => {
   const activeTab = NAV_ITEMS.find(n => n.path === location.pathname)?.id || 'leaderboard';
 
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [profile, setProfile] = useState<any>({
     name: 'Student Portal',
     role: 'student',
@@ -127,22 +129,81 @@ export const Dashboard: React.FC = () => {
               <span>{profile.collegeName}</span>
             </div>
 
-            {/* User info */}
-            <div className="flex items-center gap-2 pl-2 sm:pl-2.5 border-l border-white/[0.08]">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 p-0.5 shadow-sm shrink-0">
-                <img
-                  src={profile.avatar}
-                  alt="Profile"
-                  className="w-full h-full object-cover rounded-[6px]"
-                />
-              </div>
-              <div className="hidden sm:block text-left">
-                <div className="text-[11px] font-bold text-white leading-tight">{profile.name}</div>
-                <div className="text-[9px] text-emerald-400 font-semibold flex items-center gap-0.5 uppercase tracking-wider">
-                  <Trophy className="w-2 h-2" />
-                  <span>{profile.role} Portal</span>
+            {/* User info & Dropdown Trigger */}
+            <div className="relative">
+              <button 
+                onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                className="flex items-center gap-2 pl-2 sm:pl-2.5 border-l border-white/[0.08] cursor-pointer hover:opacity-80 transition-opacity focus:outline-none"
+              >
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 p-0.5 shadow-sm shrink-0">
+                  <img
+                    src={profile.avatar}
+                    alt="Profile"
+                    className="w-full h-full object-cover rounded-[6px]"
+                  />
                 </div>
-              </div>
+                <div className="hidden sm:block text-left">
+                  <div className="text-[11px] font-bold text-white leading-tight">{profile.name}</div>
+                  <div className="text-[9px] text-emerald-400 font-semibold flex items-center gap-0.5 uppercase tracking-wider">
+                    <Trophy className="w-2 h-2" />
+                    <span>{profile.role} Portal</span>
+                  </div>
+                </div>
+              </button>
+
+              {/* Dropdown Menu */}
+              {isProfileDropdownOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setIsProfileDropdownOpen(false)}
+                  ></div>
+                  <div className="absolute right-0 mt-3 w-72 bg-white rounded-xl shadow-2xl z-50 overflow-hidden border border-slate-200 animate-in slide-in-from-top-2 fade-in duration-200">
+                    <div className="bg-[#78C5C8] px-4 py-3 border-b border-black/5">
+                      <span className="text-[13px] font-bold text-slate-900 tracking-wide">My Profile</span>
+                    </div>
+                    <div className="p-4 bg-slate-50 relative">
+                      <div className="flex items-center gap-4">
+                        <div className="relative">
+                          <div className="w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-lg overflow-hidden border-2 border-white shadow-sm">
+                            {profile.avatar.includes('http') ? (
+                              <img src={profile.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                            ) : (
+                              profile.name.charAt(0)
+                            )}
+                          </div>
+                          <button 
+                            onClick={() => {
+                              setIsProfileDropdownOpen(false);
+                              navigate('/profile');
+                            }}
+                            className="absolute -top-1 -right-1 w-5 h-5 bg-white rounded-full border border-slate-200 shadow-sm flex items-center justify-center text-emerald-500 hover:text-emerald-600 hover:bg-slate-50 transition-colors"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <div>
+                          <div className="text-[15px] font-bold text-slate-900">{profile.name}</div>
+                          <div className="text-[11px] text-slate-500 font-medium uppercase tracking-wide">
+                            {profile.department || 'B.E CSE'}
+                          </div>
+                        </div>
+                        
+                        <div className="ml-auto">
+                           <button 
+                            onClick={handleLogout}
+                            disabled={loggingOut}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white font-semibold text-[11px] transition-colors shadow-sm disabled:opacity-50"
+                           >
+                            <LogOut className="w-3.5 h-3.5" />
+                            Log out
+                           </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
