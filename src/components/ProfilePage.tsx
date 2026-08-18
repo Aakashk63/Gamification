@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { apiGetProfile, apiUpdateProfileUrls, type ApiProfile } from '../lib/api';
-import { AvatarStore } from './AvatarStore';
-import { Share2, CheckCircle, Save, Loader2, Link2, Pencil } from 'lucide-react';
+import { Share2, CheckCircle, Save, Loader2, Link2, Pencil, Edit3 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export const ProfilePage: React.FC = () => {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<ApiProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -322,9 +323,33 @@ export const ProfilePage: React.FC = () => {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Avatar Store */}
-        <div className="w-full lg:w-1/2">
-          <AvatarStore profile={profile} onUpdate={fetchProfile} />
+        {/* RIGHT COLUMN: 3D Avatar Static Preview */}
+        <div className="w-full lg:w-1/2 relative rounded-3xl bg-[#111622]/90 border border-white/[0.08] shadow-xl overflow-hidden min-h-[500px] flex items-center justify-center group">
+          <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/10 via-transparent to-[#111622] z-10 pointer-events-none"></div>
+          
+          <img 
+            src={`/avatar_${profile.base_character?.split('_')[0] || 'boy'}.jpg`} 
+            alt="3D Avatar" 
+            className="absolute inset-0 w-full h-full object-cover opacity-90 transition-transform duration-700 group-hover:scale-105"
+          />
+
+          {/* Edit Avatar Overlay Button */}
+          <button 
+            onClick={() => navigate('/avatar-store')}
+            className="absolute top-6 right-6 z-30 bg-emerald-500 hover:bg-emerald-400 text-slate-900 p-3 rounded-2xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center group/btn"
+            title="Edit Avatar & Shop"
+          >
+            <Edit3 className="w-5 h-5 transition-transform group-hover/btn:scale-110" />
+          </button>
+
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20">
+            <div className="px-8 py-3 rounded-2xl bg-black/60 backdrop-blur-md border border-white/10 shadow-2xl flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+              <span className="text-xl font-black text-white tracking-widest uppercase">
+                {profile.full_name}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

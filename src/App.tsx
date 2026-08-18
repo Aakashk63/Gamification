@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Dashboard } from './components/Dashboard';
 import { AuthScreen } from './components/AuthScreen';
+import { AvatarStorePage } from './components/AvatarStorePage';
 import { supabase } from './lib/supabase';
 
 export function App() {
@@ -50,6 +51,7 @@ export function App() {
         <Route path="/redeem" element={<Dashboard key={session.user.id} />} />
         <Route path="/profile" element={<Dashboard key={session.user.id} />} />
         <Route path="/feedback" element={<Dashboard key={session.user.id} />} />
+        <Route path="/avatar-store" element={<AvatarStorePage key={session.user.id} />} />
         {/* Catch-all */}
         <Route path="*" element={<Navigate to="/leaderboard" replace />} />
       </Routes>
