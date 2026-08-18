@@ -253,8 +253,8 @@ export const AvatarStorePage: React.FC = () => {
 
             {/* Render Character and Equipped Items overlay */}
             <div className="flex-1 flex items-center justify-center relative mt-8">
-              <div className="relative w-48 h-64 lg:w-64 lg:h-80 drop-shadow-2xl">
-                 <img src={`/avatar_${baseCharacter.split('_')[0]}.jpg`} alt="Base Avatar" className="w-full h-full object-cover rounded-3xl border-4 border-white/10" />
+              <div className="relative w-48 h-64 lg:w-64 lg:h-80 drop-shadow-2xl flex items-center justify-center">
+                 <img src="/avatar_white.png" alt="Base Avatar" className="max-w-full max-h-full object-contain drop-shadow-2xl" onError={(e) => { e.currentTarget.src = 'https://i.imgur.com/8Qj8M4Z.png'; }} />
                  
                  {/* Visual list of equipped items over the character for context */}
                  <div className="absolute -right-4 top-4 flex flex-col gap-2">
@@ -272,21 +272,6 @@ export const AvatarStorePage: React.FC = () => {
 
             {/* Bottom Actions */}
             <div className="mt-auto space-y-3 pt-6">
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setBaseCharacter('boy_base')}
-                  className={`flex-1 py-2 rounded-xl text-xs font-bold uppercase transition-all ${baseCharacter === 'boy_base' ? 'bg-emerald-500 text-slate-900' : 'bg-black/50 text-slate-400 hover:text-white border border-white/10'}`}
-                >
-                  Boy Base
-                </button>
-                <button
-                  onClick={() => setBaseCharacter('girl_base')}
-                  className={`flex-1 py-2 rounded-xl text-xs font-bold uppercase transition-all ${baseCharacter === 'girl_base' ? 'bg-emerald-500 text-slate-900' : 'bg-black/50 text-slate-400 hover:text-white border border-white/10'}`}
-                >
-                  Girl Base
-                </button>
-              </div>
-
               <button
                 onClick={handleSave}
                 disabled={saving}

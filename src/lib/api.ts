@@ -85,7 +85,12 @@ export async function apiGetPosts(): Promise<ApiPost[]> {
 
   return data.map((post: any) => ({
     ...post,
-    comments: post.announcement_comments || [],
+    comments: (post.announcement_comments || []).map((c: any) => ({
+      ...c,
+      createdAt: c.created_at || c.createdAt,
+      authorName: c.author_name || c.authorName,
+      authorAvatar: c.author_avatar || c.authorAvatar
+    })),
     likes: post.announcement_likes?.length || 0,
     hasLiked: post.announcement_likes?.some((like: any) => like.user_id === currentUserId) || false,
   }));
@@ -164,8 +169,8 @@ export async function apiAddComment(postId: string, content: string, profile: an
     .insert([{
       post_id: postId,
       user_id: session.user.id,
-      authorName: profile.name,
-      authorAvatar: profile.avatar,
+      author_name: profile.name,
+      author_avatar: profile.avatar,
       content: content
     }])
     .select()
