@@ -237,6 +237,7 @@ export const AnnouncementPage: React.FC = () => {
 
     const newComment = {
       id: `comment-${Date.now()}`,
+      user_id: currentUserId || '',
       authorName: studentProfile.name,
       authorAvatar: studentProfile.avatar,
       content: text,

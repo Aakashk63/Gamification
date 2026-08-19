@@ -261,6 +261,18 @@ export async function apiGetProfile(): Promise<ApiProfile> {
 
   const meta = user.user_metadata || {};
 
+  // Auto-sync profile if it's missing or lacks a full_name
+  if (!profile || !profile.full_name) {
+    supabase.from('profiles').upsert({
+      id: user.id,
+      full_name: meta.name || 'CampusXP Member',
+      role: meta.role || 'student',
+      avatar_url: meta.role === 'mentor'
+        ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'
+        : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
+    }).then(() => console.log('Profile auto-synced for', user.id));
+  }
+
   return {
     id: user.id,
     full_name: profile?.full_name || meta.name || 'Anonymous User',
