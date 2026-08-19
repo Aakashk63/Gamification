@@ -86,17 +86,25 @@ export async function apiGetPosts(): Promise<ApiPost[]> {
 
   if (error) throw error;
 
-  return data.map((post: any) => ({
-    ...post,
-    comments: (post.announcement_comments || []).map((c: any) => ({
-      ...c,
-      createdAt: c.created_at || c.createdAt,
-      authorName: c.profiles?.full_name || 'Unknown User',
-      authorAvatar: c.profiles?.avatar_url || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'
-    })),
-    likes: post.announcement_likes?.length || 0,
-    hasLiked: post.announcement_likes?.some((like: any) => like.user_id === currentUserId) || false,
-  }));
+  return data.map((post: any) => {
+    const postProfile = Array.isArray(post.profiles) ? post.profiles[0] : post.profiles;
+    
+    return {
+      ...post,
+      profiles: postProfile,
+      comments: (post.announcement_comments || []).map((c: any) => {
+        const commentProfile = Array.isArray(c.profiles) ? c.profiles[0] : c.profiles;
+        return {
+          ...c,
+          createdAt: c.created_at || c.createdAt,
+          authorName: commentProfile?.full_name || 'Unknown User',
+          authorAvatar: commentProfile?.avatar_url || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'
+        };
+      }),
+      likes: post.announcement_likes?.length || 0,
+      hasLiked: post.announcement_likes?.some((like: any) => like.user_id === currentUserId) || false,
+    };
+  });
 }
 
 /** Create a new announcement post */
