@@ -14,7 +14,8 @@ export const AvatarStorePage: React.FC = () => {
   
   // Local state
   const [activeCategory, setActiveCategory] = useState<ItemCategory>('character');
-  const [baseCharacter, setBaseCharacter] = useState<string>('wall-e');
+  const [baseCharacter, setBaseCharacter] = useState<string>('char_batman');
+  const [previewCharacter, setPreviewCharacter] = useState<string | null>(null);
   const [equippedItems, setEquippedItems] = useState<string[]>([]);
   
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
@@ -22,7 +23,7 @@ export const AvatarStorePage: React.FC = () => {
 
   useEffect(() => {
     if (profile) {
-      setBaseCharacter((profile.base_character as any) || 'wall-e');
+      setBaseCharacter((profile.base_character as any) || 'char_batman');
       setEquippedItems(profile.equipped_items || []);
     }
   }, [profile]);
@@ -105,7 +106,8 @@ export const AvatarStorePage: React.FC = () => {
   ] as const;
 
   const equippedDetails = equippedItems.map(id => STORE_CATALOG.find(i => i.id === id)).filter(Boolean) as StoreItem[];
-  const currentImagePath = STORE_CATALOG.find(i => i.id === baseCharacter)?.imagePath || 'https://static.wikia.nocookie.net/injusticegodsamongus/images/e/e0/Batman.png';
+  const characterToDisplay = previewCharacter || baseCharacter;
+  const currentImagePath = STORE_CATALOG.find(i => i.id === characterToDisplay)?.imagePath || '/characters/batman_3d_v2.jpg';
 
   return (
     <div 
@@ -176,14 +178,22 @@ export const AvatarStorePage: React.FC = () => {
                 const isEquipped = item.category === 'character' ? baseCharacter === item.id : equippedItems.includes(item.id);
                 const isLockedByLevel = level < item.requiredLevel;
                 const IconComp = (Icons as any)[item.icon || 'Circle'];
+                const isPreviewed = previewCharacter === item.id;
 
                 return (
                   <div 
                     key={item.id} 
-                    className={`relative rounded-3xl border p-4 flex flex-col items-center gap-3 transition-all duration-300 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.3)] ${
-                      isEquipped 
-                        ? 'bg-emerald-900/30 border-emerald-400/50 shadow-[inset_0_0_20px_rgba(16,185,129,0.2)]' 
-                        : 'bg-[#0a1530]/60 border-indigo-400/20 hover:bg-[#0f1f45]/70 hover:border-indigo-400/50 hover:shadow-[inset_0_0_15px_rgba(99,102,241,0.15)] hover:-translate-y-1'
+                    onClick={() => {
+                      if (item.category === 'character') {
+                        setPreviewCharacter(item.id);
+                      }
+                    }}
+                    className={`relative rounded-3xl border p-4 flex flex-col items-center gap-3 transition-all duration-300 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.3)] cursor-pointer ${
+                      isPreviewed
+                        ? 'bg-[#0f1f45]/80 border-indigo-400/80 shadow-[inset_0_0_25px_rgba(99,102,241,0.3)] ring-1 ring-indigo-400 scale-[1.02]'
+                        : isEquipped 
+                          ? 'bg-emerald-900/30 border-emerald-400/50 shadow-[inset_0_0_20px_rgba(16,185,129,0.2)]' 
+                          : 'bg-[#0a1530]/60 border-indigo-400/20 hover:bg-[#0f1f45]/70 hover:border-indigo-400/50 hover:shadow-[inset_0_0_15px_rgba(99,102,241,0.15)] hover:-translate-y-1'
                     }`}
                   >
                     {/* Rare Tag */}
