@@ -42,8 +42,8 @@ export const LeaderboardList: React.FC<LeaderboardListProps> = ({
         </span>
       </div>
 
-      {/* Team Cards List: Responsive 2-column layout on large screens */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
+      {/* Team Cards List: Clean 1-column layout */}
+      <div className="grid grid-cols-1 gap-3.5">
         {teams.map((team) => (
           <TeamCard key={team.id} team={team} onSelect={onSelectTeam} />
         ))}

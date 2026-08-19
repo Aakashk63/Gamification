@@ -61,9 +61,9 @@ export const MentorVSBattle: React.FC = () => {
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-[#131826]/90 via-[#10141f]/95 to-[#0b0f19] border border-white/[0.08] p-5 shadow-xl backdrop-blur-xl">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-emerald-500/5 blur-3xl pointer-events-none rounded-full" />
 
-        <div className="relative flex items-center justify-between gap-2 max-w-2xl mx-auto py-2">
+        <div className="relative flex items-stretch justify-between gap-4 sm:gap-6 max-w-2xl mx-auto py-2">
           {/* Team 1 Side (Left) */}
-          <div className="flex-1 flex flex-col items-center text-center p-3 rounded-2xl bg-slate-900/50 border border-white/[0.04]">
+          <div className="flex-1 flex flex-col items-center text-center p-4 rounded-2xl bg-slate-900/50 border border-white/[0.04]">
             <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-3xl shadow">
               {team1.avatar}
             </div>
@@ -84,7 +84,7 @@ export const MentorVSBattle: React.FC = () => {
           </div>
 
           {/* Team 2 Side (Right) */}
-          <div className="flex-1 flex flex-col items-center text-center p-3 rounded-2xl bg-slate-900/50 border border-white/[0.04]">
+          <div className="flex-1 flex flex-col items-center text-center p-4 rounded-2xl bg-slate-900/50 border border-white/[0.04]">
             <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 flex items-center justify-center text-3xl shadow">
               {team2.avatar}
             </div>
@@ -129,9 +129,9 @@ export const MentorVSBattle: React.FC = () => {
               className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-white/[0.04] hover:border-emerald-500/20 transition-all duration-150"
             >
               {/* Student Identity */}
-              <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
                 {/* Ranking Index */}
-                <span className="w-4 text-[10px] font-bold text-slate-500 text-center font-mono">
+                <span className="w-5 text-[11px] font-bold text-slate-500 text-center font-mono shrink-0">
                   {idx + 1}
                 </span>
 
@@ -148,21 +148,21 @@ export const MentorVSBattle: React.FC = () => {
                   )}
                 </div>
 
-                <div className="min-w-0">
-                  <span className="text-xs font-bold text-slate-200 block truncate leading-tight">
+                <div className="min-w-0 pr-2">
+                  <span className="text-sm font-bold text-slate-200 block truncate leading-tight">
                     {student.name}
                   </span>
-                  <span className="text-[10px] text-slate-500 truncate block">
+                  <span className="text-[11px] text-slate-500 truncate block">
                     {student.role || 'Contributor'}
                   </span>
                 </div>
               </div>
 
               {/* Team representation & Points */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center justify-end gap-4 shrink-0 min-w-[120px]">
                 {/* Team Tag */}
                 <span
-                  className={`text-[9px] font-bold px-2 py-0.5 rounded-full border truncate max-w-[100px] flex items-center gap-1 ${
+                  className={`text-[9px] font-bold px-2 py-1 rounded-full border truncate max-w-[100px] flex items-center gap-1 ${
                     student.teamName === team1.name
                       ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                       : 'bg-purple-500/10 text-purple-400 border-purple-500/20'
@@ -173,11 +173,11 @@ export const MentorVSBattle: React.FC = () => {
                 </span>
 
                 {/* Score */}
-                <div className="text-right">
-                  <span className="text-xs font-black font-mono text-emerald-400">
+                <div className="text-right min-w-[50px]">
+                  <span className="text-sm font-black font-mono text-emerald-400">
                     {student.points}
                   </span>
-                  <span className="text-[9px] text-slate-500 block font-semibold">PTS</span>
+                  <span className="text-[9px] text-slate-500 block font-semibold leading-none">PTS</span>
                 </div>
               </div>
             </div>

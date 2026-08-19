@@ -58,7 +58,7 @@ export const LeaderboardPodium: React.FC<LeaderboardPodiumProps> = ({
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl h-36 bg-gradient-to-r from-amber-500/10 via-yellow-500/15 to-amber-500/10 blur-2xl pointer-events-none rounded-full" />
 
       {/* Top 3 Podium Grid Layout: #2 Left, #1 Center (Elevated), #3 Right - Compact & Fits in Viewport */}
-      <div className="relative grid grid-cols-3 gap-2 sm:gap-4 md:gap-6 lg:gap-8 items-end w-full max-w-3xl mx-auto px-1 sm:px-2">
+      <div className="relative grid grid-cols-3 gap-4 sm:gap-6 md:gap-8 lg:gap-12 items-end w-full max-w-4xl mx-auto px-2 sm:px-4">
         
         {/* ======================= #2 RANK - LEFT (SILVER) ======================= */}
         <div

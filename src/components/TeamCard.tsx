@@ -34,7 +34,7 @@ export const TeamCard: React.FC<TeamCardProps> = ({ team, onSelect }) => {
       className="group relative flex items-center justify-between p-2.5 sm:p-3 rounded-2xl bg-[#131825]/90 hover:bg-[#182032] border border-white/[0.06] hover:border-indigo-500/30 transition-all duration-300 shadow-md hover:shadow-xl hover:shadow-indigo-500/5 cursor-pointer backdrop-blur-md"
     >
       {/* Left side: Rank & Identity */}
-      <div className="flex items-center gap-3 md:gap-4 min-w-0">
+      <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
         {/* Rank Number Badge */}
         <div className="flex items-center justify-center min-w-[2rem] text-slate-300 group-hover:text-white transition-colors">
           <span className="font-rank text-base font-black tracking-wider">
@@ -50,7 +50,7 @@ export const TeamCard: React.FC<TeamCardProps> = ({ team, onSelect }) => {
         </div>
 
         {/* Team Name & Department / Tagline */}
-        <div className="flex flex-col min-w-0">
+        <div className="flex flex-col min-w-0 pr-2 flex-1">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold font-heading text-white tracking-wide group-hover:text-amber-300 transition-colors uppercase truncate">
               {team.name}

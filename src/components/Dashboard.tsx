@@ -337,41 +337,41 @@ export const Dashboard: React.FC = () => {
               <div className="space-y-4">
                 {/* Live Dashboard Stats Bar */}
                 {dashboardStats && (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="flex items-center gap-2.5 p-3 rounded-xl bg-[#111622] border border-white/[0.06]">
-                      <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-                        <Trophy className="w-4 h-4 text-amber-400" />
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                    <div className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 h-full rounded-2xl bg-[#111622] border border-white/[0.06] shadow-sm">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+                        <Trophy className="w-5 h-5 text-amber-400" />
                       </div>
-                      <div>
-                        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Overall Leader</p>
-                        <p className="text-xs font-black text-amber-300 tracking-wide">{dashboardStats.overallLeader}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2.5 p-3 rounded-xl bg-[#111622] border border-white/[0.06]">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                        <Users className="w-4 h-4 text-emerald-400" />
-                      </div>
-                      <div>
-                        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Total Teams</p>
-                        <p className="text-xs font-black text-emerald-300">{dashboardStats.totalTeams}</p>
+                      <div className="min-w-0">
+                        <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 truncate">Overall Leader</p>
+                        <p className="text-sm sm:text-base font-black text-amber-300 tracking-wide truncate">{dashboardStats.overallLeader}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2.5 p-3 rounded-xl bg-[#111622] border border-white/[0.06]">
-                      <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-                        <Activity className="w-4 h-4 text-blue-400" />
+                    <div className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 h-full rounded-2xl bg-[#111622] border border-white/[0.06] shadow-sm">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                        <Users className="w-5 h-5 text-emerald-400" />
                       </div>
-                      <div>
-                        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Mentors Active</p>
-                        <p className="text-xs font-black text-blue-300">{dashboardStats.activeMentorsCount}</p>
+                      <div className="min-w-0">
+                        <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 truncate">Total Teams</p>
+                        <p className="text-sm sm:text-base font-black text-emerald-300">{dashboardStats.totalTeams}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2.5 p-3 rounded-xl bg-[#111622] border border-white/[0.06]">
-                      <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
-                        <Zap className="w-4 h-4 text-purple-400" />
+                    <div className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 h-full rounded-2xl bg-[#111622] border border-white/[0.06] shadow-sm">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                        <Activity className="w-5 h-5 text-blue-400" />
                       </div>
-                      <div>
-                        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Announcements</p>
-                        <p className="text-xs font-black text-purple-300">{dashboardStats.totalAnnouncementsCount}</p>
+                      <div className="min-w-0">
+                        <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 truncate">Mentors Active</p>
+                        <p className="text-sm sm:text-base font-black text-blue-300">{dashboardStats.activeMentorsCount}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 h-full rounded-2xl bg-[#111622] border border-white/[0.06] shadow-sm">
+                      <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center shrink-0">
+                        <Zap className="w-5 h-5 text-purple-400" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 truncate">Announcements</p>
+                        <p className="text-sm sm:text-base font-black text-purple-300">{dashboardStats.totalAnnouncementsCount}</p>
                       </div>
                     </div>
                   </div>
