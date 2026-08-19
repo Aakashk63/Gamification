@@ -403,6 +403,12 @@ export async function apiGetTasks(): Promise<ApiTask[]> {
   if (!completionsError && completions) {
     completedTaskIds = new Set(completions.map(c => c.task_id));
   }
+  
+  // Fallback to localStorage if DB table is missing
+  try {
+    const localCompletions = JSON.parse(localStorage.getItem('campusxp_completed_tasks') || '[]');
+    localCompletions.forEach((id: string) => completedTaskIds.add(id));
+  } catch(e) {}
 
   return tasks.map(task => ({
     ...task,
@@ -424,6 +430,13 @@ export async function apiCompleteTask(taskId: string, points: number, isTeamTask
       throw new Error("Task already completed");
     }
     console.warn("Could not save task completion to DB (table might be missing), awarding points anyway.", completionError);
+    // Fallback to local storage
+    try {
+      const localCompletions = JSON.parse(localStorage.getItem('campusxp_completed_tasks') || '[]');
+      if (!localCompletions.includes(taskId)) {
+        localStorage.setItem('campusxp_completed_tasks', JSON.stringify([...localCompletions, taskId]));
+      }
+    } catch(e) {}
   }
 
   // 2. Award points

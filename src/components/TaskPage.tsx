@@ -33,8 +33,13 @@ export const TaskPage: React.FC = () => {
   }, []);
 
   const handleVerifySuccess = () => {
+    if (selectedTask) {
+      setTasks(prev => prev.map(t => 
+        t.id === selectedTask.id ? { ...t, completed: true } : t
+      ));
+    }
     setSelectedTask(null);
-    loadData(); // Refresh tasks and profile to show completion and updated points
+    loadData(); // Refresh tasks and profile to show updated points from backend
   };
 
   if (loading) {
