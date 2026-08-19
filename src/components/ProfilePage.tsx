@@ -368,7 +368,7 @@ export const ProfilePage: React.FC = () => {
 
              <div className="relative w-48 h-48 sm:w-64 sm:h-64 rounded-full bg-[#1a1525] border-4 border-emerald-500/50 shadow-2xl flex items-center justify-center overflow-hidden shrink-0">
                <img 
-                 src={STORE_CATALOG.find(i => i.id === profile.base_character)?.imagePath || 'https://static.wikia.nocookie.net/injusticegodsamongus/images/e/e0/Batman.png'} 
+                 src={STORE_CATALOG.find(i => i.id === profile.base_character)?.imagePath || '/characters/batman_3d_v2.png'} 
                  alt="Your Avatar"
                  className="w-full h-full object-contain drop-shadow-xl" 
                />
