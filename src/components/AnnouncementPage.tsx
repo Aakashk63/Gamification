@@ -445,9 +445,9 @@ export const AnnouncementPage: React.FC = () => {
               const isSharedTarget = sharedPostId === post.id;
               const isAuthor = post.author_id === currentUserId;
               
-              const authorName = post.profiles?.full_name || 'Unknown User';
-              const authorAvatar = post.profiles?.avatar_url || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80';
-              const authorTagline = post.profiles?.role || 'Member';
+              const authorName = isAuthor ? studentProfile.name : (post.profiles?.full_name || 'Unknown User');
+              const authorAvatar = isAuthor ? studentProfile.avatar : (post.profiles?.avatar_url || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80');
+              const authorTagline = isAuthor ? studentProfile.tagline : (post.profiles?.role || 'Member');
               const displayDate = new Date(post.created_at).toLocaleDateString();
 
               return (
@@ -615,27 +615,26 @@ export const AnnouncementPage: React.FC = () => {
                           </button>
                         </div>
                       </div>
-
-                      {/* Comment list */}
+              {/* Comment list */}
                       {post.comments.length > 0 && (
                         <div className="space-y-2.5">
                           {post.comments.map((comment) => {
-                            const isCommentAuthor = comment.authorName === studentProfile.name;
+                            const isCommentAuthor = comment.user_id === currentUserId;
                             return (
                               <div
                                 key={comment.id}
                                 className="flex items-start gap-2.5 p-2 rounded-xl bg-slate-900/40 border border-white/[0.02] group"
                               >
                                 <img
-                                  src={comment.authorAvatar}
-                                  alt={comment.authorName}
+                                  src={comment.user_id === currentUserId ? studentProfile.avatar : comment.authorAvatar}
+                                  alt={comment.user_id === currentUserId ? studentProfile.name : comment.authorName}
                                   className="w-7 h-7 rounded-full object-cover mt-0.5"
                                 />
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                       <span className="text-xs font-bold text-slate-300">
-                                        {comment.authorName}
+                                        {comment.user_id === currentUserId ? studentProfile.name : comment.authorName}
                                       </span>
                                       {/* Delete Option for Comment Author only */}
                                       {isCommentAuthor && (

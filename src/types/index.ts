@@ -39,6 +39,7 @@ export interface Mentor {
 
 export interface PostComment {
   id: string;
+  user_id?: string;
   authorName: string;
   authorAvatar: string;
   content: string;
