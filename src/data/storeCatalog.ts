@@ -38,7 +38,7 @@ export const STORE_CATALOG: StoreItem[] = [
     category: 'character', 
     price: 800, 
     requiredLevel: 3, 
-    imagePath: 'https://images.unsplash.com/photo-1608889175123-8ee362201f81?w=500&auto=format&fit=crop&q=80',
+    imagePath: '/characters/Ironman.png',
     icon: 'User', 
     color: 'bg-red-500' 
   },
@@ -48,7 +48,7 @@ export const STORE_CATALOG: StoreItem[] = [
     category: 'character', 
     price: 1000, 
     requiredLevel: 5, 
-    imagePath: 'https://images.unsplash.com/photo-1635805737707-575885ab0820?w=500&auto=format&fit=crop&q=80',
+    imagePath: '/characters/spiderman.png',
     icon: 'User', 
     color: 'bg-red-600' 
   },
