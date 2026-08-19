@@ -21,6 +21,25 @@ function Model({ path }: { path: string }) {
     } else if (path.includes('batman')) {
       cloned.scale.setScalar(0.04);
       cloned.position.set(0, -1.2, 0);
+    } else if (path.includes('wall-e')) {
+      // Wall-E loads facing away from the camera, rotate 180 degrees
+      cloned.rotation.y = Math.PI;
+      const box = new THREE.Box3();
+      cloned.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          box.expandByObject(child);
+        }
+      });
+      if (!box.isEmpty()) {
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = 2.2 / maxDim;
+        cloned.scale.setScalar(scale);
+        cloned.position.x = -center.x * scale;
+        cloned.position.y = -box.min.y * scale - 1.2; 
+        cloned.position.z = -center.z * scale;
+      }
     } else {
       // Default auto-scaling for non-skinned meshes like Wall-E
       const box = new THREE.Box3();
