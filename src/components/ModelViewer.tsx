@@ -91,6 +91,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
           <OrbitControls 
             enableZoom={false} 
             enablePan={false}
+            enableRotate={false}
             autoRotate={false}
             minPolarAngle={Math.PI / 3}
             maxPolarAngle={Math.PI / 1.8}

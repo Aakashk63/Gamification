@@ -192,7 +192,7 @@ export const Dashboard: React.FC = () => {
                       <div className="flex items-center gap-4">
                         <div className="relative">
                           <div className="w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-lg overflow-hidden border-2 border-white shadow-sm">
-                            {profile.avatar.includes('http') ? (
+                            {(profile.avatar.includes('http') || profile.avatar.includes('data:image')) ? (
                               <img src={profile.avatar} alt="Avatar" className="w-full h-full object-cover" />
                             ) : (
                               profile.name.charAt(0)

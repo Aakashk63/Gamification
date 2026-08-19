@@ -369,12 +369,11 @@ export const ProfilePage: React.FC = () => {
 
           {/* RIGHT COLUMN: Profile Preview */}
           <div className="flex-1 p-8 flex flex-col items-center justify-center bg-slate-900/30 min-h-0 relative">
-             <div className="space-y-2 text-center mb-8 shrink-0">
-                <h2 className="text-xl font-bold text-slate-100">
-                  Profile Preview
-                </h2>
-                <p className="text-sm text-slate-400">How others see your profile.</p>
-             </div>
+             <div className="text-center mb-6">
+              <h2 className="text-xl font-bold text-slate-100 flex items-center justify-center gap-2">
+                Your Avatar
+              </h2>
+            </div>
 
              <div className="relative w-48 h-48 sm:w-64 sm:h-64 rounded-full bg-[#1a1525] border-4 border-emerald-500/50 shadow-2xl flex items-center justify-center overflow-hidden shrink-0">
                <ModelViewer 
