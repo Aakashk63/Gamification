@@ -129,10 +129,6 @@ export const AvatarStorePage: React.FC = () => {
           <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">
             <span className="text-xs font-black text-amber-400">LVL {level}</span>
           </div>
-          <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 px-3 py-1 rounded-full">
-            <Coins className="w-4 h-4 text-yellow-400" />
-            <span className="text-sm font-black text-yellow-400">{coins}</span>
-          </div>
         </div>
       </header>
 
