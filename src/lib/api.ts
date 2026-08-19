@@ -299,8 +299,8 @@ export async function apiGetProfile(): Promise<ApiProfile> {
     team_points: profile?.team_points || 0,
     level: profile?.level || 1,
     coins: profile?.coins || 1000,
-    base_character: profile?.base_character || 'boy_base',
-    equipped_items: profile?.equipped_items || [],
+    base_character: profile?.base_character || meta.base_character || 'boy_base',
+    equipped_items: profile?.equipped_items || meta.equipped_items || [],
     unlocked_items: profile?.unlocked_items || [],
   };
 }
@@ -309,10 +309,13 @@ export async function apiUpdateAvatarState(base_character: string, equipped_item
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  const { error } = await supabase
-    .from('profiles')
-    .update({ base_character, equipped_items })
-    .eq('id', user.id);
+  // Store avatar settings in user_metadata to bypass missing column errors on profiles table
+  const { error } = await supabase.auth.updateUser({
+    data: { base_character, equipped_items }
+  });
+
+  // Try to update profiles as well, but ignore error if columns don't exist
+  await supabase.from('profiles').update({ base_character, equipped_items }).eq('id', user.id).catch(() => {});
 
   if (error) throw error;
 }

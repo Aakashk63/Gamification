@@ -140,7 +140,7 @@ export const AvatarStorePage: React.FC = () => {
       <div className="relative z-10 flex-1 flex h-[calc(100vh-3.5rem)]">
         
         {/* Left Sidebar (Categories) */}
-        <aside className="w-20 border-r border-white/10 bg-[#0a1530]/40 backdrop-blur-md flex flex-col items-center py-4 gap-2 overflow-y-auto custom-scrollbar shadow-xl">
+        <aside className="w-20 border-r border-white/10 bg-[#0a1530]/40 backdrop-blur-md flex flex-col items-center py-4 gap-2 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] shadow-xl">
           {CATEGORIES.map(cat => {
             const Icon = cat.icon;
             const isActive = activeCategory === cat.id;
@@ -164,7 +164,7 @@ export const AvatarStorePage: React.FC = () => {
             <span className="text-xs font-semibold text-slate-500">{STORE_CATALOG.filter(i => i.category === activeCategory).length} items</span>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             {errorMsg && (
               <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm font-bold flex items-center justify-between">
                 <span>{errorMsg}</span>
@@ -174,9 +174,9 @@ export const AvatarStorePage: React.FC = () => {
             
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
               {STORE_CATALOG.filter(i => i.category === activeCategory).map(item => {
-                const isUnlocked = unlockedItems.includes(item.id);
-                const isEquipped = item.category === 'character' ? baseCharacter === item.id : equippedItems.includes(item.id);
                 const isLockedByLevel = level < item.requiredLevel;
+                const isUnlocked = (item.category === 'character' && !isLockedByLevel) || unlockedItems.includes(item.id);
+                const isEquipped = item.category === 'character' ? baseCharacter === item.id : equippedItems.includes(item.id);
                 const IconComp = (Icons as any)[item.icon || 'Circle'];
                 const isPreviewed = previewCharacter === item.id;
 
