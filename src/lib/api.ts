@@ -347,16 +347,22 @@ export async function apiPurchaseItem(itemId: string, cost: number): Promise<voi
   if (error) throw error;
 }
 
-export async function apiUpdateProfileUrls(linkedinUrl: string, leetcodeUrl: string): Promise<void> {
+export async function apiUpdateProfileUrls(linkedinUrl: string, leetcodeUrl: string, avatarUrl?: string): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
+  const updateData: any = {
+    linkedin_url: linkedinUrl,
+    leetcode_url: leetcodeUrl
+  };
+  
+  if (avatarUrl) {
+    updateData.avatar_url = avatarUrl;
+  }
+
   const { error } = await supabase
     .from('profiles')
-    .update({
-      linkedin_url: linkedinUrl,
-      leetcode_url: leetcodeUrl
-    })
+    .update(updateData)
     .eq('id', user.id);
 
   if (error) throw error;

@@ -21,6 +21,17 @@ export const ProfilePage: React.FC = () => {
   // Edit mode state
   const [isEditingLinkedin, setIsEditingLinkedin] = useState(false);
   const [isEditingLeetcode, setIsEditingLeetcode] = useState(false);
+  const [avatarBase64, setAvatarBase64] = useState<string | null>(null);
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setAvatarBase64(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     fetchProfile();
@@ -93,7 +104,7 @@ export const ProfilePage: React.FC = () => {
 
     setSaving(true);
     try {
-      await apiUpdateProfileUrls(linkedinUrl.trim(), leetcodeUrl.trim());
+      await apiUpdateProfileUrls(linkedinUrl.trim(), leetcodeUrl.trim(), avatarBase64 || undefined);
       setSaveSuccess(true);
       setIsEditingLinkedin(false);
       setIsEditingLeetcode(false);
@@ -145,7 +156,35 @@ export const ProfilePage: React.FC = () => {
               <p className="text-sm text-slate-400">Update your external profile links.</p>
             </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-6">
+          <div className="flex-1 overflow-y-auto pr-2 space-y-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+            
+            {/* Upload Photo Option */}
+            <div className="space-y-1.5 flex items-center justify-between bg-slate-900/40 p-4 rounded-xl border border-white/[0.04]">
+              <div>
+                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                  Profile Photo
+                </label>
+                <p className="text-[10px] text-slate-500 mt-0.5">Upload a photo for your popup avatar.</p>
+              </div>
+              <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-emerald-500/30 bg-slate-900 flex shrink-0 group">
+                {(avatarBase64 || profile.avatar_url) ? (
+                  <img src={avatarBase64 || profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="m-auto text-slate-500 text-xs">{profile.full_name?.charAt(0) || 'U'}</span>
+                )}
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Pencil className="w-4 h-4 text-white" />
+                </div>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handlePhotoUpload} 
+                  className="absolute inset-0 opacity-0 cursor-pointer" 
+                  title="Upload Photo"
+                />
+              </div>
+            </div>
+
             {/* Name */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">
