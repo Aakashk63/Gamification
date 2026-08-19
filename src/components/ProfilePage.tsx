@@ -157,9 +157,9 @@ export const ProfilePage: React.FC = () => {
                 </label>
                 <p className="text-[10px] text-slate-500 mt-0.5">Upload a photo for your popup avatar.</p>
               </div>
-              <div className="relative w-20 h-20 rounded-full overflow-hidden border-2 border-emerald-500/30 bg-slate-900 flex shrink-0 group">
+              <div className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-emerald-500/30 bg-transparent flex shrink-0 group">
                 {(avatarBase64 || profile.avatar_url) ? (
-                  <img src={avatarBase64 || profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                  <img src={avatarBase64 || profile.avatar_url} alt="Profile" className="w-full h-full object-contain" />
                 ) : (
                   <span className="m-auto text-slate-500 text-xs">{profile.full_name?.charAt(0) || 'U'}</span>
                 )}
