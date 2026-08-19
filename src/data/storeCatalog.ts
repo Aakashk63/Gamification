@@ -18,7 +18,7 @@ export const STORE_CATALOG: StoreItem[] = [
     category: 'character', 
     price: 500, 
     requiredLevel: 1, 
-    imagePath: '/characters/batman_3d.jpg',
+    imagePath: '/characters/batman_3d_v2.jpg',
     icon: 'User', 
     color: 'bg-zinc-800' 
   },
