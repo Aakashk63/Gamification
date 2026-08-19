@@ -132,33 +132,18 @@ export const ProfilePage: React.FC = () => {
         <div className="h-px flex-1 bg-gradient-to-r from-emerald-500/20 to-transparent"></div>
       </div>
 
-      <div className="flex justify-center flex-1 min-h-0">
-        {/* CENTER COLUMN: Form */}
-        <div className="w-full max-w-2xl p-8 rounded-3xl bg-[#111622]/90 border border-white/[0.08] shadow-xl flex flex-col min-h-0 relative">
+      <div className="flex justify-center flex-1 min-h-0 px-4 pb-4">
+        {/* CENTER CONTAINER: 50/50 Grid */}
+        <div className="w-full max-w-5xl rounded-3xl bg-[#111622]/90 border border-white/[0.08] shadow-xl flex flex-col md:flex-row min-h-0 relative overflow-hidden">
           
-          <div className="flex items-center gap-6 shrink-0 mb-8">
-            <div className="relative w-24 h-24 rounded-full bg-[#1a1525] border-2 border-emerald-500/50 shadow-lg flex items-center justify-center overflow-hidden shrink-0">
-              <ModelViewer 
-                modelPath={STORE_CATALOG.find(i => i.id === profile.base_character)?.modelPath || '/models/wall-e.glb'} 
-                className="w-full h-full" 
-              />
-              <button 
-                onClick={() => navigate('/avatar-store')}
-                className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white cursor-pointer z-20"
-                title="Edit Avatar & Shop"
-              >
-                <Pencil className="w-5 h-5 mb-1" />
-                <span className="text-[10px] font-bold">EDIT</span>
-              </button>
-            </div>
-            
-            <div className="space-y-1">
+          {/* LEFT COLUMN: Form */}
+          <div className="flex-1 flex flex-col p-8 md:border-r border-white/[0.08] min-h-0">
+            <div className="space-y-1 mb-8 shrink-0">
               <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
                 Personal Information
               </h2>
-              <p className="text-sm text-slate-400">Update your external profile links and avatar.</p>
+              <p className="text-sm text-slate-400">Update your external profile links.</p>
             </div>
-          </div>
 
           <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-6">
             {/* Name */}
@@ -305,41 +290,74 @@ export const ProfilePage: React.FC = () => {
             </div>
           )}
 
-          <div className="pt-4 flex items-center justify-between">
-            <button 
-              onClick={handleShare}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-white/[0.06] hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer text-sm font-semibold"
-            >
-              {copied ? (
-                <>
-                  <CheckCircle className="w-4 h-4 text-emerald-400" />
-                  <span className="text-emerald-400">Link Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Share2 className="w-4 h-4" />
-                  Share Profile
-                </>
-              )}
-            </button>
+            <div className="pt-4 flex items-center justify-between shrink-0">
+              <button 
+                onClick={handleShare}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-white/[0.06] hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer text-sm font-semibold"
+              >
+                {copied ? (
+                  <>
+                    <CheckCircle className="w-4 h-4 text-emerald-400" />
+                    <span className="text-emerald-400">Link Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="w-4 h-4" />
+                    Share Profile
+                  </>
+                )}
+              </button>
 
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition-all cursor-pointer shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  Save Changes
-                </>
-              )}
-            </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition-all cursor-pointer shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Save Changes
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN: Profile Preview */}
+          <div className="flex-1 p-8 flex flex-col items-center justify-center bg-slate-900/30 min-h-0 relative">
+             <div className="space-y-2 text-center mb-8 shrink-0">
+                <h2 className="text-xl font-bold text-slate-100">
+                  Profile Preview
+                </h2>
+                <p className="text-sm text-slate-400">How others see your profile.</p>
+             </div>
+
+             <div className="relative w-48 h-48 sm:w-64 sm:h-64 rounded-full bg-[#1a1525] border-4 border-emerald-500/50 shadow-2xl flex items-center justify-center overflow-hidden shrink-0">
+               <ModelViewer 
+                 modelPath={STORE_CATALOG.find(i => i.id === profile.base_character)?.modelPath || '/models/wall-e.glb'} 
+                 className="w-full h-full" 
+               />
+               <button 
+                 onClick={() => navigate('/avatar-store')}
+                 className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white cursor-pointer z-20"
+                 title="Edit Avatar & Shop"
+               >
+                 <Pencil className="w-6 h-6 mb-1" />
+                 <span className="text-xs font-bold tracking-widest">EDIT AVATAR</span>
+               </button>
+             </div>
+             
+             <div className="mt-8 text-center space-y-2">
+               <h3 className="text-2xl font-black text-white tracking-tight">{profile.full_name}</h3>
+               <div className="inline-flex items-center justify-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-semibold text-sm uppercase tracking-widest">
+                 {profile.role}
+               </div>
+             </div>
           </div>
         </div>
       </div>

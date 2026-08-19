@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Leaderboard } from './Leaderboard';
 import { MentorVSBattle } from './MentorVSBattle';
@@ -56,6 +56,25 @@ export const Dashboard: React.FC = () => {
   });
   const [dashboardStats, setDashboardStats] = useState<ApiDashboardStats | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  // Ref for the profile popup container to handle click outside
+  const profileDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Handle click outside to close profile dropdown
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
+        setIsProfileDropdownOpen(false);
+      }
+    };
+
+    if (isProfileDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isProfileDropdownOpen]);
 
   React.useEffect(() => {
     // Fetch user details
@@ -131,7 +150,7 @@ export const Dashboard: React.FC = () => {
             </div>
 
             {/* User info & Dropdown Trigger */}
-            <div className="relative">
+            <div className="relative" ref={profileDropdownRef}>
               <button 
                 onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
                 className="flex items-center gap-2 pl-2 sm:pl-2.5 border-l border-white/[0.08] cursor-pointer hover:opacity-80 transition-opacity focus:outline-none"
@@ -154,12 +173,7 @@ export const Dashboard: React.FC = () => {
 
               {/* Dropdown Menu */}
               {isProfileDropdownOpen && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-40" 
-                    onClick={() => setIsProfileDropdownOpen(false)}
-                  ></div>
-                  <div className="absolute right-0 mt-3 w-72 bg-white rounded-xl shadow-2xl z-50 overflow-hidden border border-slate-200 animate-in slide-in-from-top-2 fade-in duration-200">
+                <div className="absolute right-0 mt-3 w-72 bg-white rounded-xl shadow-2xl z-50 overflow-hidden border border-slate-200 animate-in slide-in-from-top-2 fade-in duration-200">
                     <div className="bg-[#78C5C8] px-4 py-3 border-b border-black/5">
                       <span className="text-[13px] font-bold text-slate-900 tracking-wide">My Profile</span>
                     </div>
@@ -203,7 +217,6 @@ export const Dashboard: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                </>
               )}
             </div>
           </div>
