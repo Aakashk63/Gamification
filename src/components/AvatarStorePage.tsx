@@ -108,9 +108,15 @@ export const AvatarStorePage: React.FC = () => {
   const currentImagePath = STORE_CATALOG.find(i => i.id === baseCharacter)?.imagePath || 'https://static.wikia.nocookie.net/injusticegodsamongus/images/e/e0/Batman.png';
 
   return (
-    <div className="fixed inset-0 bg-[#070b14] flex flex-col font-sans overflow-hidden">
+    <div 
+      className="fixed inset-0 flex flex-col font-sans overflow-hidden bg-cover bg-center bg-no-repeat"
+      style={{ backgroundImage: "url('https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&q=80')" }}
+    >
+      {/* Dark overlay to ensure readability */}
+      <div className="absolute inset-0 bg-[#070b14]/70 pointer-events-none z-0" />
+      
       {/* Top Header */}
-      <header className="h-14 border-b border-white/5 flex items-center justify-between px-6 bg-slate-900/40">
+      <header className="relative z-10 h-14 border-b border-white/10 flex items-center justify-between px-6 bg-[#0a1530]/40 backdrop-blur-md shadow-lg">
         <button 
           onClick={() => navigate('/profile')}
           className="flex items-center gap-2 text-slate-300 hover:text-white font-semibold transition-colors"
@@ -129,10 +135,10 @@ export const AvatarStorePage: React.FC = () => {
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 flex h-[calc(100vh-3.5rem)]">
+      <div className="relative z-10 flex-1 flex h-[calc(100vh-3.5rem)]">
         
         {/* Left Sidebar (Categories) */}
-        <aside className="w-20 border-r border-white/5 bg-slate-900/20 flex flex-col items-center py-4 gap-2 overflow-y-auto custom-scrollbar">
+        <aside className="w-20 border-r border-white/10 bg-[#0a1530]/40 backdrop-blur-md flex flex-col items-center py-4 gap-2 overflow-y-auto custom-scrollbar shadow-xl">
           {CATEGORIES.map(cat => {
             const Icon = cat.icon;
             const isActive = activeCategory === cat.id;
@@ -150,8 +156,8 @@ export const AvatarStorePage: React.FC = () => {
         </aside>
 
         {/* Center Item Grid */}
-        <div className="flex-1 bg-slate-900/10 border-r border-white/5 flex flex-col relative">
-          <div className="p-6 border-b border-white/5 flex items-center justify-between">
+        <div className="flex-1 bg-[#0a1530]/20 backdrop-blur-sm border-r border-white/10 flex flex-col relative">
+          <div className="p-6 border-b border-white/10 flex items-center justify-between bg-[#0a1530]/30 shadow-md">
             <h2 className="text-lg font-bold text-white capitalize">{activeCategory}</h2>
             <span className="text-xs font-semibold text-slate-500">{STORE_CATALOG.filter(i => i.category === activeCategory).length} items</span>
           </div>
@@ -174,20 +180,29 @@ export const AvatarStorePage: React.FC = () => {
                 return (
                   <div 
                     key={item.id} 
-                    className={`relative rounded-2xl border p-4 flex flex-col items-center gap-3 transition-all ${isEquipped ? 'bg-emerald-500/10 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10'}`}
+                    className={`relative rounded-3xl border p-4 flex flex-col items-center gap-3 transition-all duration-300 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.3)] ${
+                      isEquipped 
+                        ? 'bg-emerald-900/30 border-emerald-400/50 shadow-[inset_0_0_20px_rgba(16,185,129,0.2)]' 
+                        : 'bg-[#0a1530]/60 border-indigo-400/20 hover:bg-[#0f1f45]/70 hover:border-indigo-400/50 hover:shadow-[inset_0_0_15px_rgba(99,102,241,0.15)] hover:-translate-y-1'
+                    }`}
                   >
-                    {/* Rare Tag (Example logic: > 2000 price is rare) */}
+                    {/* Rare Tag */}
                     {item.price >= 2000 && (
-                      <div className="absolute -top-2 -right-2 bg-fuchsia-500 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-lg">
+                      <div className="absolute -top-3 -right-3 bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white text-[10px] font-black uppercase px-3 py-1 rounded-full shadow-lg border border-fuchsia-400/50">
                         Rare
                       </div>
                     )}
                     
-                    <div className={`w-full h-36 rounded-xl ${item.color || 'bg-slate-800'} flex items-center justify-center shrink-0 shadow-inner overflow-hidden relative p-2`}>
+                    <div className="w-full h-44 rounded-2xl bg-transparent flex items-center justify-center shrink-0 relative p-2 transition-transform duration-500 hover:scale-105">
                       {item.category === 'character' ? (
-                        <img src={item.imagePath} alt={item.name} className="w-full h-full object-contain object-bottom drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)]" />
+                        <img 
+                          src={item.imagePath} 
+                          alt={item.name} 
+                          className="w-full h-full object-contain object-center drop-shadow-[0_15px_15px_rgba(0,0,0,0.6)]" 
+                          style={{ mixBlendMode: 'normal' }}
+                        />
                       ) : (
-                        IconComp && <IconComp className="w-10 h-10 text-white/90" />
+                        IconComp && <IconComp className="w-12 h-12 text-indigo-300 drop-shadow-[0_0_15px_rgba(99,102,241,0.5)]" />
                       )}
                     </div>
                     
