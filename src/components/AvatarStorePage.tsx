@@ -246,7 +246,7 @@ export const AvatarStorePage: React.FC = () => {
         </div>
 
         {/* Right Panel (Avatar Preview Room) */}
-        <div className="w-80 lg:w-[450px] relative flex flex-col bg-[#0b0f19]">
+        <div className="w-80 lg:w-1/2 xl:w-[600px] relative flex flex-col bg-[#0b0f19] border-l border-white/5">
           <div className="absolute inset-0 z-0">
              <img src="/scifi_lab.jpg" alt="Sci-fi Room" className="w-full h-full object-cover opacity-80" />
              <div className="absolute inset-0 bg-gradient-to-t from-[#0b0f19] via-transparent to-transparent"></div>
@@ -259,8 +259,8 @@ export const AvatarStorePage: React.FC = () => {
             </div>
 
             {/* Render Character and Equipped Items overlay */}
-            <div className="flex-1 flex items-center justify-center relative mt-8">
-              <div className="relative w-full h-80 drop-shadow-2xl flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center relative mt-4">
+              <div className="relative w-full h-[60vh] lg:h-[75vh] drop-shadow-2xl flex items-center justify-center">
                  <ModelViewer modelPath={currentModelPath} className="w-full h-full" />
                  
                  {/* Visual list of equipped items over the character for context */}
