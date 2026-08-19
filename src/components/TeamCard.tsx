@@ -1,6 +1,6 @@
 import React from 'react';
-import type { Team, TeamMember } from '../types';
-import { ChevronUp, ChevronDown, Minus, Shield } from 'lucide-react';
+import type { Team } from '../types';
+import { ChevronUp, ChevronDown, Minus } from 'lucide-react';
 
 interface TeamCardProps {
   team: Team;
@@ -9,8 +9,6 @@ interface TeamCardProps {
 }
 
 export const TeamCard: React.FC<TeamCardProps> = ({ team, onSelect }) => {
-  const members = (Array.isArray(team.members) ? team.members : []) as (TeamMember | string)[];
-
   // Calculate rank trend
   const getRankTrend = () => {
     if (!team.previousRank || team.previousRank === team.rank) {

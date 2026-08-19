@@ -315,7 +315,7 @@ export async function apiUpdateAvatarState(base_character: string, equipped_item
   });
 
   // Try to update profiles as well, but ignore error if columns don't exist
-  await supabase.from('profiles').update({ base_character, equipped_items }).eq('id', user.id).catch(() => {});
+  await supabase.from('profiles').update({ base_character, equipped_items }).eq('id', user.id);
 
   if (error) throw error;
 }
