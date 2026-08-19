@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { apiGetProfile, apiUpdateProfileUrls, type ApiProfile } from '../lib/api';
+import { apiUpdateProfileUrls } from '../lib/api';
 import { Share2, CheckCircle, Save, Loader2, Link2, Pencil } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ModelViewer } from './ModelViewer';
 import { STORE_CATALOG } from '../data/storeCatalog';
+import { useProfile } from '../contexts/ProfileContext';
 
 export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<ApiProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { profile, loading, refreshProfile } = useProfile();
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -34,23 +34,11 @@ export const ProfilePage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  const fetchProfile = async () => {
-    try {
-      setLoading(true);
-      const data = await apiGetProfile();
-      setProfile(data);
-      setLinkedinUrl(data.linkedin_url || '');
-      setLeetcodeUrl(data.leetcode_url || '');
-    } catch (err) {
-      console.error('Failed to load profile', err);
-      setErrorMsg('Failed to load profile data.');
-    } finally {
-      setLoading(false);
+    if (profile) {
+      setLinkedinUrl(profile.linkedin_url || '');
+      setLeetcodeUrl(profile.leetcode_url || '');
     }
-  };
+  }, [profile]);
 
   const extractUsername = (input: string, platform: 'linkedin' | 'leetcode'): string | null => {
     const val = input.trim();
@@ -108,6 +96,10 @@ export const ProfilePage: React.FC = () => {
       setSaveSuccess(true);
       setIsEditingLinkedin(false);
       setIsEditingLeetcode(false);
+      
+      // Instantly sync the global application profile state!
+      await refreshProfile();
+      
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to save profile.');

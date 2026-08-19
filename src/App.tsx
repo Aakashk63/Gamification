@@ -4,6 +4,7 @@ import { Dashboard } from './components/Dashboard';
 import { AuthScreen } from './components/AuthScreen';
 import { AvatarStorePage } from './components/AvatarStorePage';
 import { supabase } from './lib/supabase';
+import { ProfileProvider } from './contexts/ProfileContext';
 
 export function App() {
   const [session, setSession] = useState<any>(null);
@@ -40,10 +41,11 @@ export function App() {
   }
 
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Redirect root to /leaderboard */}
-        <Route path="/" element={<Navigate to="/leaderboard" replace />} />
+    <ProfileProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Redirect root to /leaderboard */}
+          <Route path="/" element={<Navigate to="/leaderboard" replace />} />
         {/* All dashboard tabs as routes */}
         <Route path="/leaderboard" element={<Dashboard key={session.user.id} />} />
         <Route path="/announcement" element={<Dashboard key={session.user.id} />} />
@@ -54,8 +56,9 @@ export function App() {
         <Route path="/avatar-store" element={<AvatarStorePage key={session.user.id} />} />
         {/* Catch-all */}
         <Route path="*" element={<Navigate to="/leaderboard" replace />} />
-      </Routes>
-    </BrowserRouter>
+        </Routes>
+      </BrowserRouter>
+    </ProfileProvider>
   );
 }
 

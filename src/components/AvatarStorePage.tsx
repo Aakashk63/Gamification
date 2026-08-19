@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { STORE_CATALOG, type StoreItem, type ItemCategory } from '../data/storeCatalog';
-import { apiGetProfile, apiPurchaseItem, apiUpdateAvatarState, type ApiProfile } from '../lib/api';
+import { apiPurchaseItem, apiUpdateAvatarState } from '../lib/api';
 import { ArrowLeft, Coins, Lock, Loader2, Undo, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as Icons from 'lucide-react';
 import { ModelViewer } from './ModelViewer';
+import { useProfile } from '../contexts/ProfileContext';
 
 export const AvatarStorePage: React.FC = () => {
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<ApiProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { profile, loading, refreshProfile } = useProfile();
   const [saving, setSaving] = useState(false);
   
   // Local state
@@ -21,21 +21,11 @@ export const AvatarStorePage: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  const fetchProfile = async () => {
-    try {
-      const p = await apiGetProfile();
-      setProfile(p);
-      setBaseCharacter((p.base_character as any) || 'boy_base');
-      setEquippedItems(p.equipped_items || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+    if (profile) {
+      setBaseCharacter((profile.base_character as any) || 'wall-e');
+      setEquippedItems(profile.equipped_items || []);
     }
-  };
+  }, [profile]);
 
   const handleSave = async () => {
     if (!profile) return;
@@ -43,6 +33,7 @@ export const AvatarStorePage: React.FC = () => {
     setErrorMsg('');
     try {
       await apiUpdateAvatarState(baseCharacter, equippedItems);
+      await refreshProfile();
       navigate('/profile');
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to save avatar');
@@ -76,7 +67,7 @@ export const AvatarStorePage: React.FC = () => {
     setErrorMsg('');
     try {
       await apiPurchaseItem(item.id, item.price);
-      await fetchProfile(); // Reload profile to get new coins/inventory
+      await refreshProfile(); // Reload profile to get new coins/inventory
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to purchase item');
     } finally {

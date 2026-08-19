@@ -8,7 +8,8 @@ import { ProfilePage } from './ProfilePage';
 import { TaskPage } from './TaskPage';
 import { INITIAL_TEAMS } from '../data/mockData';
 import { supabase } from '../lib/supabase';
-import { apiGetDashboardStats, apiGetProfile, type ApiDashboardStats } from '../lib/api';
+import { apiGetDashboardStats, type ApiDashboardStats } from '../lib/api';
+import { useProfile } from '../contexts/ProfileContext';
 import {
   Flame,
   GraduationCap,
@@ -47,13 +48,18 @@ export const Dashboard: React.FC = () => {
 
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
-  const [profile, setProfile] = useState<any>({
-    name: 'Student Portal',
-    role: 'student',
+  const { profile: globalProfile, loading: profileLoading } = useProfile();
+  
+  // Format global profile into the structure Dashboard expects
+  const profile = globalProfile ? {
+    name: globalProfile.full_name,
+    role: globalProfile.role,
     collegeName: 'SNS Institution',
-    department: '',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
-  });
+    department: 'B.E CSE',
+    avatar: globalProfile.avatar_url || (globalProfile.role === 'mentor'
+      ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'
+      : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80')
+  } : null;
   const [dashboardStats, setDashboardStats] = useState<ApiDashboardStats | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -77,35 +83,7 @@ export const Dashboard: React.FC = () => {
   }, [isProfileDropdownOpen]);
 
   React.useEffect(() => {
-    // Fetch user details using apiGetProfile to get updated avatar
-    apiGetProfile().then((profileData) => {
-      setProfile({
-        name: profileData.full_name,
-        role: profileData.role,
-        collegeName: 'SNS Institution', // Defaults since not in ApiProfile
-        department: 'B.E CSE',
-        avatar: profileData.avatar_url || (profileData.role === 'mentor'
-          ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'
-          : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80')
-      });
-    }).catch(err => {
-      console.error('Failed to load profile:', err);
-      // Fallback
-      supabase.auth.getUser().then(({ data: { user } }) => {
-        if (user && user.user_metadata) {
-          const meta = user.user_metadata;
-          setProfile({
-            name: meta.name || 'Anonymous User',
-            role: meta.role || 'student',
-            collegeName: meta.collegeName || 'SNS Institution',
-            department: meta.department || '',
-            avatar: meta.role === 'mentor'
-              ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'
-              : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
-          });
-        }
-      });
-    });
+
 
     apiGetDashboardStats().then(setDashboardStats).catch(console.error);
   }, []);
@@ -157,28 +135,46 @@ export const Dashboard: React.FC = () => {
             {/* College badge */}
             <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/80 border border-white/[0.08] text-xs text-slate-300 font-semibold">
               <GraduationCap className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{profile.collegeName}</span>
+              {profileLoading || !profile ? (
+                <div className="w-20 h-4 bg-slate-800 animate-pulse rounded"></div>
+              ) : (
+                <span>{profile.collegeName}</span>
+              )}
             </div>
 
             {/* User info & Dropdown Trigger */}
             <div className="relative" ref={profileDropdownRef}>
               <button 
-                onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                className="flex items-center gap-2 pl-2 sm:pl-2.5 border-l border-white/[0.08] cursor-pointer hover:opacity-80 transition-opacity focus:outline-none"
+                onClick={() => profile && setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                className="flex items-center gap-2 pl-2 sm:pl-2.5 border-l border-white/[0.08] cursor-pointer hover:opacity-80 transition-opacity focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={profileLoading || !profile}
               >
                 <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 p-0.5 shadow-sm shrink-0">
-                  <img
-                    src={profile.avatar}
-                    alt="Profile"
-                    className="w-full h-full object-cover rounded-[6px]"
-                  />
+                  {profileLoading || !profile ? (
+                    <div className="w-full h-full bg-slate-800 rounded-[6px] animate-pulse"></div>
+                  ) : (
+                    <img
+                      src={profile.avatar}
+                      alt="Profile"
+                      className="w-full h-full object-cover rounded-[6px]"
+                    />
+                  )}
                 </div>
                 <div className="hidden sm:block text-left">
-                  <div className="text-[11px] font-bold text-white leading-tight">{profile.name}</div>
-                  <div className="text-[9px] text-emerald-400 font-semibold flex items-center gap-0.5 uppercase tracking-wider">
-                    <Trophy className="w-2 h-2" />
-                    <span>{profile.role} Portal</span>
-                  </div>
+                  {profileLoading || !profile ? (
+                    <>
+                      <div className="h-3 w-16 bg-slate-800 animate-pulse rounded mb-1"></div>
+                      <div className="h-2 w-12 bg-slate-800 animate-pulse rounded"></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-[11px] font-bold text-white leading-tight">{profile.name}</div>
+                      <div className="text-[9px] text-emerald-400 font-semibold flex items-center gap-0.5 uppercase tracking-wider">
+                        <Trophy className="w-2 h-2" />
+                        <span>{profile.role} Portal</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </button>
 
@@ -192,10 +188,10 @@ export const Dashboard: React.FC = () => {
                       <div className="flex items-center gap-4">
                         <div className="relative">
                           <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center font-bold text-lg overflow-hidden border-2 border-emerald-500/50 shadow-sm">
-                            {(profile.avatar.includes('http') || profile.avatar.includes('data:image')) ? (
+                            {(profile?.avatar?.includes('http') || profile?.avatar?.includes('data:image')) ? (
                               <img src={profile.avatar} alt="Avatar" className="w-full h-full object-cover" />
                             ) : (
-                              profile.name.charAt(0)
+                              profile?.name?.charAt(0) || 'U'
                             )}
                           </div>
                           <button 
@@ -209,9 +205,9 @@ export const Dashboard: React.FC = () => {
                           </button>
                         </div>
                         <div>
-                          <div className="text-[15px] font-bold text-white">{profile.name}</div>
+                          <div className="text-[15px] font-bold text-white">{profile?.name || ''}</div>
                           <div className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">
-                            {profile.department || 'B.E CSE'}
+                            {profile?.department || 'B.E CSE'}
                           </div>
                         </div>
                         
