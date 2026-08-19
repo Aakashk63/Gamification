@@ -8,7 +8,7 @@ import { ProfilePage } from './ProfilePage';
 import { TaskPage } from './TaskPage';
 import { INITIAL_TEAMS } from '../data/mockData';
 import { supabase } from '../lib/supabase';
-import { apiGetDashboardStats, type ApiDashboardStats } from '../lib/api';
+import { apiGetDashboardStats, apiGetProfile, type ApiDashboardStats } from '../lib/api';
 import {
   Flame,
   GraduationCap,
@@ -77,26 +77,37 @@ export const Dashboard: React.FC = () => {
   }, [isProfileDropdownOpen]);
 
   React.useEffect(() => {
-    // Fetch user details
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user && user.user_metadata) {
-        const meta = user.user_metadata;
-        setProfile({
-          name: meta.name || 'Anonymous User',
-          role: meta.role || 'student',
-          collegeName: meta.collegeName || 'SNS Institution',
-          department: meta.department || '',
-          avatar: meta.role === 'mentor'
-            ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'
-            : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
-        });
-      }
+    // Fetch user details using apiGetProfile to get updated avatar
+    apiGetProfile().then((profileData) => {
+      setProfile({
+        name: profileData.full_name,
+        role: profileData.role,
+        collegeName: 'SNS Institution', // Defaults since not in ApiProfile
+        department: 'B.E CSE',
+        avatar: profileData.avatar_url || (profileData.role === 'mentor'
+          ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'
+          : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80')
+      });
+    }).catch(err => {
+      console.error('Failed to load profile:', err);
+      // Fallback
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user && user.user_metadata) {
+          const meta = user.user_metadata;
+          setProfile({
+            name: meta.name || 'Anonymous User',
+            role: meta.role || 'student',
+            collegeName: meta.collegeName || 'SNS Institution',
+            department: meta.department || '',
+            avatar: meta.role === 'mentor'
+              ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'
+              : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
+          });
+        }
+      });
     });
 
-    // Fetch live dashboard stats from backend API
-    apiGetDashboardStats()
-      .then(setDashboardStats)
-      .catch(() => {/* silently ignore if offline */});
+    apiGetDashboardStats().then(setDashboardStats).catch(console.error);
   }, []);
 
   const handleLogout = async () => {
