@@ -18,7 +18,7 @@ export const STORE_CATALOG: StoreItem[] = [
     category: 'character', 
     price: 500, 
     requiredLevel: 1, 
-    imagePath: '/characters/batman_3d_v2.jpg',
+    imagePath: '/characters/batman_3d_v2.png',
     icon: 'User', 
     color: 'bg-zinc-800' 
   },
@@ -28,7 +28,7 @@ export const STORE_CATALOG: StoreItem[] = [
     category: 'character', 
     price: 600, 
     requiredLevel: 2, 
-    imagePath: '/characters/superman_3d.jpg',
+    imagePath: '/characters/superman_3d.png',
     icon: 'User', 
     color: 'bg-blue-600' 
   },
@@ -58,7 +58,7 @@ export const STORE_CATALOG: StoreItem[] = [
     category: 'character', 
     price: 1500, 
     requiredLevel: 7, 
-    imagePath: '/characters/aizen_3d.jpg',
+    imagePath: '/characters/aizen_3d.png',
     icon: 'User', 
     color: 'bg-purple-600' 
   },
@@ -68,7 +68,7 @@ export const STORE_CATALOG: StoreItem[] = [
     category: 'character', 
     price: 2000, 
     requiredLevel: 10, 
-    imagePath: '/characters/luffy_3d.jpg',
+    imagePath: '/characters/luffy_3d.png',
     icon: 'User', 
     color: 'bg-yellow-500' 
   },
@@ -78,7 +78,7 @@ export const STORE_CATALOG: StoreItem[] = [
     category: 'character', 
     price: 2500, 
     requiredLevel: 12, 
-    imagePath: '/characters/rengoku_3d.jpg',
+    imagePath: '/characters/rengoku_3d.png',
     icon: 'User', 
     color: 'bg-orange-500' 
   }

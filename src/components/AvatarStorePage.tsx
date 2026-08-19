@@ -107,7 +107,7 @@ export const AvatarStorePage: React.FC = () => {
 
   const equippedDetails = equippedItems.map(id => STORE_CATALOG.find(i => i.id === id)).filter(Boolean) as StoreItem[];
   const characterToDisplay = previewCharacter || baseCharacter;
-  const currentImagePath = STORE_CATALOG.find(i => i.id === characterToDisplay)?.imagePath || '/characters/batman_3d_v2.jpg';
+  const currentImagePath = STORE_CATALOG.find(i => i.id === characterToDisplay)?.imagePath || '/characters/batman_3d_v2.png';
 
   return (
     <div 
