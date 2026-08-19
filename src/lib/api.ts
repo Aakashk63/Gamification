@@ -337,3 +337,77 @@ export async function apiUpdateProfileUrls(linkedinUrl: string, leetcodeUrl: str
 
   if (error) throw error;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TASK APIS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ApiTask {
+  id: string;
+  title: string;
+  description: string;
+  points: number;
+  category: 'individual' | 'team';
+  type: 'daily' | 'weekly' | 'special';
+  is_leetcode: boolean;
+  created_at: string;
+  completed?: boolean;
+}
+
+export async function apiGetTasks(): Promise<ApiTask[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  // Fetch all tasks
+  const { data: tasks, error: tasksError } = await supabase
+    .from('tasks')
+    .select('*');
+    
+  if (tasksError) throw tasksError;
+
+  // Fetch user completions
+  const { data: completions, error: completionsError } = await supabase
+    .from('task_completions')
+    .select('task_id, completed_at')
+    .eq('user_id', user.id);
+
+  if (completionsError) throw completionsError;
+
+  // Mark completed tasks
+  const completedTaskIds = new Set(completions?.map(c => c.task_id) || []);
+
+  return (tasks || []).map(task => ({
+    ...task,
+    completed: completedTaskIds.has(task.id)
+  }));
+}
+
+export async function apiCompleteTask(taskId: string, points: number, isTeamTask: boolean): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  // 1. Insert completion record
+  const { error: completionError } = await supabase
+    .from('task_completions')
+    .insert({ user_id: user.id, task_id: taskId });
+
+  if (completionError) {
+    if (completionError.code === '23505') {
+      throw new Error("Task already completed");
+    }
+    throw completionError;
+  }
+
+  // 2. Award points
+  const { data: profile } = await supabase.from('profiles').select('coins, team_points').eq('id', user.id).single();
+  if (!profile) return;
+
+  const updates: any = {};
+  if (isTeamTask) {
+    updates.team_points = (profile.team_points || 0) + points;
+  } else {
+    updates.coins = (profile.coins || 0) + points;
+  }
+
+  await supabase.from('profiles').update(updates).eq('id', user.id);
+}

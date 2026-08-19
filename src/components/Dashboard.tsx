@@ -5,6 +5,7 @@ import { MentorVSBattle } from './MentorVSBattle';
 import { AnnouncementPage } from './AnnouncementPage';
 import { FeedbackForm } from './FeedbackForm';
 import { ProfilePage } from './ProfilePage';
+import { TaskPage } from './TaskPage';
 import { INITIAL_TEAMS } from '../data/mockData';
 import { supabase } from '../lib/supabase';
 import { apiGetDashboardStats, type ApiDashboardStats } from '../lib/api';
@@ -368,6 +369,8 @@ export const Dashboard: React.FC = () => {
               <AnnouncementPage />
             ) : activeTab === 'profile' ? (
               <ProfilePage />
+            ) : activeTab === 'task' ? (
+              <TaskPage />
             ) : activeTab === 'feedback' ? (
               <FeedbackForm />
             ) : (
