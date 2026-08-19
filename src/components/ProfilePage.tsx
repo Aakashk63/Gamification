@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { apiUpdateProfileUrls } from '../lib/api';
 import { Share2, CheckCircle, Save, Loader2, Link2, Pencil } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { ModelViewer } from './ModelViewer';
 import { STORE_CATALOG } from '../data/storeCatalog';
 import { useProfile } from '../contexts/ProfileContext';
 
@@ -368,9 +367,10 @@ export const ProfilePage: React.FC = () => {
             </div>
 
              <div className="relative w-48 h-48 sm:w-64 sm:h-64 rounded-full bg-[#1a1525] border-4 border-emerald-500/50 shadow-2xl flex items-center justify-center overflow-hidden shrink-0">
-               <ModelViewer 
-                 modelPath={STORE_CATALOG.find(i => i.id === profile.base_character)?.modelPath || '/models/wall-e.glb'} 
-                 className="w-full h-full" 
+               <img 
+                 src={STORE_CATALOG.find(i => i.id === profile.base_character)?.imagePath || 'https://static.wikia.nocookie.net/injusticegodsamongus/images/e/e0/Batman.png'} 
+                 alt="Your Avatar"
+                 className="w-full h-full object-contain drop-shadow-xl" 
                />
                <button 
                  onClick={() => navigate('/avatar-store')}

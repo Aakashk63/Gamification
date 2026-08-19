@@ -4,7 +4,7 @@ import { apiPurchaseItem, apiUpdateAvatarState } from '../lib/api';
 import { ArrowLeft, Coins, Lock, Loader2, Undo, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as Icons from 'lucide-react';
-import { ModelViewer } from './ModelViewer';
+
 import { useProfile } from '../contexts/ProfileContext';
 
 export const AvatarStorePage: React.FC = () => {
@@ -105,7 +105,7 @@ export const AvatarStorePage: React.FC = () => {
   ] as const;
 
   const equippedDetails = equippedItems.map(id => STORE_CATALOG.find(i => i.id === id)).filter(Boolean) as StoreItem[];
-  const currentModelPath = STORE_CATALOG.find(i => i.id === baseCharacter)?.modelPath || '/models/wall-e.glb';
+  const currentImagePath = STORE_CATALOG.find(i => i.id === baseCharacter)?.imagePath || 'https://static.wikia.nocookie.net/injusticegodsamongus/images/e/e0/Batman.png';
 
   return (
     <div className="fixed inset-0 bg-[#070b14] flex flex-col font-sans overflow-hidden">
@@ -183,9 +183,9 @@ export const AvatarStorePage: React.FC = () => {
                       </div>
                     )}
                     
-                    <div className={`w-full h-36 rounded-xl ${item.color || 'bg-slate-800'} flex items-center justify-center shrink-0 shadow-inner overflow-hidden relative`}>
+                    <div className={`w-full h-36 rounded-xl ${item.color || 'bg-slate-800'} flex items-center justify-center shrink-0 shadow-inner overflow-hidden relative p-2`}>
                       {item.category === 'character' ? (
-                        <ModelViewer modelPath={item.modelPath} className="w-full h-full" />
+                        <img src={item.imagePath} alt={item.name} className="w-full h-full object-contain object-bottom drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)]" />
                       ) : (
                         IconComp && <IconComp className="w-10 h-10 text-white/90" />
                       )}
@@ -251,8 +251,8 @@ export const AvatarStorePage: React.FC = () => {
 
             {/* Render Character and Equipped Items overlay */}
             <div className="flex-1 flex items-center justify-center relative mt-4">
-              <div className="relative w-full h-[60vh] lg:h-[75vh] drop-shadow-2xl flex items-center justify-center">
-                 <ModelViewer modelPath={currentModelPath} className="w-full h-full" />
+              <div className="relative w-full h-[60vh] lg:h-[75vh] flex items-center justify-center">
+                 <img src={currentImagePath} alt="Selected Avatar" className="w-full h-full object-contain object-bottom drop-shadow-[0_20px_30px_rgba(0,0,0,0.6)]" />
                  
                  {/* Visual list of equipped items over the character for context */}
                  <div className="absolute -right-4 top-4 flex flex-col gap-2">
