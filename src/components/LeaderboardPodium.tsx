@@ -93,15 +93,19 @@ export const LeaderboardPodium: React.FC<LeaderboardPodiumProps> = ({
           </div>
 
           {/* Pedestal Block - Height Compact */}
-          <div className="w-full h-16 sm:h-20 md:h-24 rounded-t-xl bg-gradient-to-b from-slate-800/90 via-slate-900/95 to-[#0e1320] border-t-2 border-x border-slate-400/50 flex flex-col items-center justify-between p-1.5 sm:p-2 shadow-lg relative overflow-hidden backdrop-blur-md">
-            <div className="w-full flex justify-center pt-0.5">
-              <span className="font-rank text-xl sm:text-2xl md:text-3xl font-black text-slate-400/40 group-hover:text-slate-300/60 transition-colors">
+          <div className="w-full h-24 sm:h-28 md:h-32 rounded-t-xl bg-gradient-to-b from-slate-800/90 via-slate-900/95 to-[#0e1320] border-t-2 border-x border-slate-400/50 flex flex-col items-center justify-between p-1.5 sm:p-2 shadow-lg relative overflow-hidden backdrop-blur-md">
+            <div className="absolute inset-0 flex justify-center items-start pt-2">
+              <span className="font-rank text-4xl sm:text-5xl md:text-6xl font-black text-slate-500/20 group-hover:text-slate-400/30 transition-colors leading-none">
                 2
               </span>
             </div>
-            <div className="w-full text-center pb-0.5">
-              <span className="text-[8px] sm:text-[9px] uppercase font-extrabold tracking-widest text-slate-400">
-                RUNNER UP
+            <div className="flex-1"></div>
+            <div className="w-full flex flex-col items-center pb-1 z-10">
+              <span className="text-xl sm:text-2xl font-black text-slate-300 tracking-wider leading-none">
+                900
+              </span>
+              <span className="text-[8px] sm:text-[9px] uppercase font-bold tracking-widest text-slate-500 mt-1">
+                POINTS
               </span>
             </div>
             {/* Top edge highlight */}
@@ -150,15 +154,19 @@ export const LeaderboardPodium: React.FC<LeaderboardPodiumProps> = ({
           </div>
 
           {/* Pedestal Block - Highest Elevation */}
-          <div className="w-full h-24 sm:h-28 md:h-36 rounded-t-xl bg-gradient-to-b from-amber-500/20 via-slate-900 to-[#0e1320] border-t-3 border-x border-amber-400/70 flex flex-col items-center justify-between p-1.5 sm:p-2 shadow-lg relative overflow-hidden backdrop-blur-md">
-            <div className="w-full flex justify-center pt-0.5">
-              <span className="font-rank text-2xl sm:text-3xl md:text-5xl font-black text-amber-400/40 group-hover:text-amber-400/70 transition-colors">
+          <div className="w-full h-32 sm:h-36 md:h-44 rounded-t-xl bg-gradient-to-b from-amber-500/20 via-slate-900 to-[#0e1320] border-t-3 border-x border-amber-400/70 flex flex-col items-center justify-between p-1.5 sm:p-2 shadow-lg relative overflow-hidden backdrop-blur-md">
+            <div className="absolute inset-0 flex justify-center items-start pt-3">
+              <span className="font-rank text-5xl sm:text-6xl md:text-8xl font-black text-amber-500/10 group-hover:text-amber-500/20 transition-colors leading-none">
                 1
               </span>
             </div>
-            <div className="w-full text-center pb-1">
-              <span className="text-[8px] sm:text-[9px] uppercase font-black tracking-widest text-amber-400 bg-amber-950/70 px-2 py-0.5 rounded-full border border-amber-500/40 shadow-sm">
-                CURRENT LEADER
+            <div className="flex-1"></div>
+            <div className="w-full flex flex-col items-center pb-3 z-10">
+              <span className="text-2xl sm:text-3xl md:text-4xl font-black text-amber-400 tracking-wider leading-none">
+                950
+              </span>
+              <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-widest text-amber-500 mt-1">
+                POINTS
               </span>
             </div>
             {/* Top edge golden highlight */}
@@ -199,15 +207,19 @@ export const LeaderboardPodium: React.FC<LeaderboardPodiumProps> = ({
           </div>
 
           {/* Pedestal Block - Height Lower */}
-          <div className="w-full h-12 sm:h-14 md:h-18 rounded-t-xl bg-gradient-to-b from-amber-950/30 via-slate-900/95 to-[#0e1320] border-t-2 border-x border-amber-700/50 flex flex-col items-center justify-between p-1.5 sm:p-2 shadow-lg relative overflow-hidden backdrop-blur-md">
-            <div className="w-full flex justify-center pt-0.5">
-              <span className="font-rank text-xl sm:text-2xl md:text-3xl font-black text-amber-700/30 group-hover:text-amber-600/60 transition-colors">
+          <div className="w-full h-20 sm:h-24 md:h-28 rounded-t-xl bg-gradient-to-b from-amber-950/30 via-slate-900/95 to-[#0e1320] border-t-2 border-x border-amber-700/50 flex flex-col items-center justify-between p-1.5 sm:p-2 shadow-lg relative overflow-hidden backdrop-blur-md">
+            <div className="absolute inset-0 flex justify-center items-start pt-2">
+              <span className="font-rank text-4xl sm:text-5xl md:text-6xl font-black text-amber-700/20 group-hover:text-amber-600/30 transition-colors leading-none">
                 3
               </span>
             </div>
-            <div className="w-full text-center pb-0.5">
-              <span className="text-[8px] sm:text-[9px] uppercase font-extrabold tracking-widest text-amber-600/80">
-                3RD PLACE
+            <div className="flex-1"></div>
+            <div className="w-full flex flex-col items-center pb-1 z-10">
+              <span className="text-xl sm:text-2xl font-black text-amber-600 tracking-wider leading-none">
+                890
+              </span>
+              <span className="text-[8px] sm:text-[9px] uppercase font-bold tracking-widest text-amber-700 mt-1">
+                POINTS
               </span>
             </div>
             {/* Top edge highlight */}
