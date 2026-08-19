@@ -369,11 +369,11 @@ export const Dashboard: React.FC = () => {
                     </div>
                   </div>
                 )}
-                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-                  <div className="xl:col-span-7">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 xl:gap-8 items-start">
+                  <div className="lg:col-span-1 w-full">
                     <Leaderboard initialLeaderboard={defaultLeaderboard} />
                   </div>
-                  <div className="xl:col-span-5">
+                  <div className="lg:col-span-1 w-full">
                     <MentorVSBattle />
                   </div>
                 </div>
