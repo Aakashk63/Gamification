@@ -143,6 +143,10 @@ export async function apiCreatePost(caption: string, imageUrl: string | null, vi
 
 /** Delete a post by ID */
 export async function apiDeletePost(postId: string): Promise<{ success: boolean }> {
+  // Try to delete comments and likes first to avoid FK constraint errors if cascade is not enabled
+  await supabase.from('announcement_comments').delete().eq('announcement_id', postId);
+  await supabase.from('announcement_likes').delete().eq('announcement_id', postId);
+
   const { error } = await supabase
     .from('announcements')
     .delete()

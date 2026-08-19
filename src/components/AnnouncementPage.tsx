@@ -546,7 +546,6 @@ export const AnnouncementPage: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-3">
                       <span>{post.comments?.length || 0} Comments</span>
-                      <span>0 Shares</span>
                     </div>
                   </div>
 
