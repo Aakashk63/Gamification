@@ -260,7 +260,72 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- Verify results:
--- SELECT id, full_name, role, mentor_id, mentor_name FROM public.profiles ORDER BY role;
--- SELECT id, team_id, student_id, status, joined_at FROM public.team_members;
+-- PART 7: Fix specific student "user dummy" → assign to Aakash K
+-- Finds the Aakash K mentor by name and assigns that UUID to user dummy.
+-- Safe: only runs if user dummy has mentor_id = NULL.
 -- ============================================================================
+
+DO $$
+DECLARE
+  dummy_id    UUID;
+  aakash_id   UUID;
+  dummy_students JSONB;
+BEGIN
+  -- Find user dummy's profile id
+  SELECT id INTO dummy_id
+  FROM public.profiles
+  WHERE role = 'student' AND lower(trim(full_name)) = 'user dummy'
+  LIMIT 1;
+
+  -- Find Aakash K's mentor profile id
+  SELECT id INTO aakash_id
+  FROM public.profiles
+  WHERE role = 'mentor' AND lower(trim(full_name)) LIKE '%aakash%'
+  LIMIT 1;
+
+  IF dummy_id IS NULL THEN
+    RAISE NOTICE 'user dummy not found in public.profiles — skipping.';
+  ELSIF aakash_id IS NULL THEN
+    RAISE NOTICE 'Aakash K mentor not found — skipping.';
+  ELSE
+    -- Assign mentor only if not already assigned
+    UPDATE public.profiles
+    SET mentor_id = aakash_id,
+        mentor_name = (SELECT full_name FROM public.profiles WHERE id = aakash_id)
+    WHERE id = dummy_id AND mentor_id IS NULL;
+
+    -- Also add to Aakash K's students[] JSONB if not already present
+    SELECT students INTO dummy_students
+    FROM public.profiles WHERE id = aakash_id;
+
+    IF dummy_students IS NULL THEN dummy_students := '[]'::jsonb; END IF;
+
+    IF NOT (dummy_students @> '"user dummy"'::jsonb) THEN
+      UPDATE public.profiles
+      SET students = dummy_students || '["user dummy"]'::jsonb
+      WHERE id = aakash_id;
+    END IF;
+
+    RAISE NOTICE 'Fixed: user dummy -> Aakash K (%)', aakash_id;
+  END IF;
+END $$;
+
+-- ============================================================================
+-- PART 8: Verification queries — run after applying this migration
+-- ============================================================================
+
+-- Check all profiles with their mentor assignment:
+-- SELECT id, full_name, role, mentor_id, mentor_name, students
+-- FROM public.profiles
+-- ORDER BY role, full_name;
+
+-- Check team_members status column exists:
+-- SELECT column_name, data_type, column_default
+-- FROM information_schema.columns
+-- WHERE table_schema = 'public'
+--   AND table_name = 'team_members';
+
+-- Check RLS policies on profiles:
+-- SELECT policyname, cmd, qual, with_check
+-- FROM pg_policies
+-- WHERE tablename = 'profiles' AND schemaname = 'public';

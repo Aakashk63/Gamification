@@ -694,82 +694,42 @@ export async function apiGetUnassignedStudents(): Promise<any[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  // 1. Fetch mentor profile including the students JSONB column
-  let mentorProfile: any = null;
-  const { data: mProfile, error: mError } = await supabase
+  // ── STEP 1: Fetch all students where student.mentor_id = this mentor's UUID ──
+  // This is the authoritative relationship. mentor_id UUID is the source of truth.
+  const { data: studentsByUuid, error: studentsError } = await supabase
     .from('profiles')
-    .select('id, full_name, role, avatar_url, mentor_name, students')
-    .eq('id', user.id)
-    .eq('role', 'mentor')
-    .maybeSingle();
+    .select('id, full_name, avatar_url, role')
+    .eq('role', 'student')
+    .eq('mentor_id', user.id)
+    .order('full_name', { ascending: true });
 
-  if (mError) {
-    console.error("Error fetching mentor profile:", mError);
-  }
-  
-  mentorProfile = mProfile || { id: user.id, full_name: user.user_metadata?.name || 'Mentor', students: [] };
-  const mentorStudentNames: string[] = Array.isArray(mentorProfile?.students)
-    ? mentorProfile.students
-    : [];
-
-  // 2. Fetch mentor's teams
-  const { data: teams } = await supabase
-    .from('teams')
-    .select('id')
-    .eq('mentor_id', user.id);
-
-  const teamIds = (teams || []).map((t: any) => t.id);
-
-  // 3. Fetch team members
-  let allTeamMembers: any[] = [];
-  const assignedStudentIds = new Set<string>();
-  const assignedStudentNames = new Set<string>();
-
-  if (teamIds.length > 0) {
-    const { data: members, error: tmError } = await supabase
-      .from('team_members')
-      .select('id, team_id, student_id, status, profiles (id, full_name)')
-      .in('team_id', teamIds);
-
-    if (tmError) {
-      console.warn("TEAM MEMBERS query error:", tmError);
-    } else if (members) {
-      allTeamMembers = members;
-      members.forEach((m: any) => {
-        if (m.status !== 'declined') {
-          if (m.student_id) assignedStudentIds.add(m.student_id);
-          if (m.profiles?.full_name) assignedStudentNames.add(m.profiles.full_name.trim().toLowerCase());
-        }
-      });
-    }
+  if (studentsError) {
+    console.error("apiGetUnassignedStudents: error fetching students by mentor_id:", studentsError);
+    throw new Error("Unable to fetch students for this mentor.");
   }
 
-  // 4. Resolve mentor students into profile objects with UUIDs
-  let studentProfiles: any[] = [];
+  let studentProfiles: any[] = studentsByUuid || [];
 
-  // Try matching by student's mentor_id UUID first
+  // ── STEP 2: Legacy JSONB fallback ────────────────────────────────────────────
+  // For old student records that still have mentor_id = NULL but appear in
+  // the mentor's students[] JSONB array. Only fetches real DB profiles.
   try {
-    const { data: uuidMatched } = await supabase
+    const { data: mProfile } = await supabase
       .from('profiles')
-      .select('id, full_name, avatar_url, role')
-      .eq('role', 'student')
-      .eq('mentor_id', user.id);
+      .select('students')
+      .eq('id', user.id)
+      .eq('role', 'mentor')
+      .maybeSingle();
 
-    if (uuidMatched && uuidMatched.length > 0) {
-      studentProfiles = [...uuidMatched];
-    }
-  } catch (e) {
-    console.warn("apiGetUnassignedStudents UUID match error:", e);
-  }
+    const jsonbNames: string[] = Array.isArray(mProfile?.students) ? mProfile.students : [];
 
-  // Fallback / merge using students name JSONB list if needed
-  if (mentorStudentNames.length > 0) {
-    try {
+    if (jsonbNames.length > 0) {
       const { data: nameMatched } = await supabase
         .from('profiles')
         .select('id, full_name, avatar_url, role')
         .eq('role', 'student')
-        .in('full_name', mentorStudentNames);
+        .is('mentor_id', null)
+        .in('full_name', jsonbNames);
 
       if (nameMatched) {
         nameMatched.forEach((nm: any) => {
@@ -778,45 +738,57 @@ export async function apiGetUnassignedStudents(): Promise<any[]> {
           }
         });
       }
+    }
+  } catch (e) {
+    console.warn("apiGetUnassignedStudents: legacy JSONB fallback error:", e);
+  }
+
+  // ── STEP 3: Exclude students already in an active team slot ──────────────────
+  const { data: teams } = await supabase
+    .from('teams')
+    .select('id')
+    .eq('mentor_id', user.id);
+
+  const teamIds = (teams || []).map((t: any) => t.id);
+  const assignedStudentIds = new Set<string>();
+
+  if (teamIds.length > 0) {
+    try {
+      const { data: members, error: tmError } = await supabase
+        .from('team_members')
+        .select('student_id, status')
+        .in('team_id', teamIds);
+
+      if (tmError) {
+        // If status column is missing, log a warning but don't crash
+        console.warn("team_members query error (run fix_mentor_rls.sql to add status column):", tmError.message);
+      } else if (members) {
+        members.forEach((m: any) => {
+          // Declined students are available again; only exclude pending + accepted
+          if (m.status !== 'declined' && m.student_id) {
+            assignedStudentIds.add(m.student_id);
+          }
+        });
+      }
     } catch (e) {
-      console.warn("apiGetUnassignedStudents Name match error:", e);
+      console.warn("apiGetUnassignedStudents: team_members fetch exception:", e);
     }
   }
 
-  // If any student name from mentorProfile.students is still not resolved, add a placeholder
-  mentorStudentNames.forEach((name: string) => {
-    if (!studentProfiles.some(sp => sp.full_name?.trim().toLowerCase() === name.trim().toLowerCase())) {
-      studentProfiles.push({
-        id: name,
-        full_name: name,
-        avatar_url: '',
-        role: 'student'
-      });
-    }
-  });
+  // ── STEP 4: Return available students ────────────────────────────────────────
+  const available = studentProfiles.filter((s: any) => !assignedStudentIds.has(s.id));
 
-  // 5. Filter out students already assigned to any team of this mentor
-  const availableStudents = studentProfiles.filter((s: any) => {
-    const isIdAssigned = s.id && assignedStudentIds.has(s.id);
-    const isNameAssigned = s.full_name && assignedStudentNames.has(s.full_name.trim().toLowerCase());
-    return !isIdAssigned && !isNameAssigned;
-  });
+  console.log(`[apiGetUnassignedStudents] mentor=${user.id} total=${studentProfiles.length} assigned=${assignedStudentIds.size} available=${available.length}`);
 
-  // Exact debugging logs requested by user
-  console.log("Current mentor ID:", user.id);
-  console.log("Mentor profile:", mentorProfile);
-  console.log("Mentor students:", mentorProfile?.students);
-  console.log("Mentor teams:", teams || []);
-  console.log("Team members:", allTeamMembers);
-  console.log("Available students:", availableStudents);
-
-  return availableStudents.map((s: any) => ({
+  return available.map((s: any) => ({
     id: s.id,
     full_name: s.full_name || 'Student',
     avatar_url: s.avatar_url || '',
     role: s.role || 'student'
   }));
 }
+
+
 
 export async function apiAddStudentToTeam(teamId: string, studentIdOrName: string): Promise<any> {
   const { data: { user } } = await supabase.auth.getUser();
