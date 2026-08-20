@@ -54,6 +54,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Fetch mentor list directly from public.profiles table where role = 'mentor'
+  // NOTE: Requires RLS policy "Public can read mentor profiles" to exist in Supabase.
+  // Run src/fix_mentor_rls.sql in Supabase SQL Editor if mentor list is empty.
   useEffect(() => {
     const fetchMentors = async () => {
       setMentorsLoading(true);
@@ -63,17 +65,27 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           .select('id, full_name, avatar_url, role')
           .eq('role', 'mentor');
 
-        if (error) throw error;
+        if (error) {
+          console.error('Mentor fetch error (likely RLS — run src/fix_mentor_rls.sql):', error);
+          throw error;
+        }
 
-        setMentorList(
-          (data || []).map((p: any) => ({
-            id: p.id,
-            name: p.full_name || 'Unnamed Mentor',
-            avatar: p.avatar_url || '',
-            role: 'mentor',
-            department: ''
-          }))
-        );
+        const mapped = (data || []).map((p: any) => ({
+          id: p.id,
+          name: p.full_name || 'Unnamed Mentor',
+          avatar: p.avatar_url || '',
+          role: 'mentor',
+          department: ''
+        }));
+
+        if (mapped.length === 0) {
+          console.warn(
+            'Mentor list is empty. If mentors exist in the DB, run src/fix_mentor_rls.sql ' +
+            'in your Supabase SQL Editor to allow public reads of mentor profiles.'
+          );
+        }
+
+        setMentorList(mapped);
       } catch (err) {
         console.warn('Could not fetch mentors from public.profiles:', err);
         setMentorList([]);
@@ -177,58 +189,93 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         
         if (signupError) throw signupError;
 
-        // If signup was successful (new user), upsert profile into public.profiles
+        // If signup was successful (new user), create profile in public.profiles
         if (data.user && data.user.identities && data.user.identities.length > 0) {
+          // Final guard: student must have selected mentor
           if (effectiveRole === 'student' && !selectedMentorId) {
             setErrorMsg("Please select a mentor before continuing.");
+            // Cleanup: sign out the created auth user since profile creation was aborted
+            await supabase.auth.signOut();
             setLoading(false);
             return;
           }
 
-          const selectedMentorObj = mentorList.find(m => m.id === selectedMentorId);
+          const resolvedMentorId = effectiveRole === 'student' ? selectedMentorId : null;
+          const resolvedMentorObj = resolvedMentorId
+            ? mentorList.find(m => m.id === resolvedMentorId) || null
+            : null;
+          const resolvedMentorName = resolvedMentorObj?.name || null;
+
+          // Build the profile payload with all required fields
+          const profilePayload: Record<string, any> = {
+            id: data.user.id,
+            full_name: name.trim(),
+            role: effectiveRole,
+            mentor_id: resolvedMentorId,
+            mentor_name: resolvedMentorName,
+            avatar_url: effectiveRole === 'mentor'
+              ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'
+              : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
+          };
+
+          if (effectiveRole === 'student') {
+            profilePayload.department = dept.trim() || null;
+            profilePayload.college = collegeName.trim() || null;
+            profilePayload.register_no = registerNo.trim() || null;
+          }
+
+          console.log('Creating profile with payload:', {
+            ...profilePayload,
+            mentor_id: resolvedMentorId,
+            mentor_name: resolvedMentorName
+          });
 
           const { error: profileError } = await supabase
             .from('profiles')
-            .upsert({
-              id: data.user.id,
-              full_name: name.trim(),
-              role: effectiveRole,
-              department: dept.trim() || null,
-              college: collegeName.trim() || null,
-              register_no: registerNo.trim() || null,
-              mentor_id: effectiveRole === 'student' ? selectedMentorId : null,
-              mentor_name: effectiveRole === 'student' ? (selectedMentorObj?.name || null) : null,
-              avatar_url: effectiveRole === 'mentor'
-                ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'
-                : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
-            });
+            .upsert(profilePayload);
 
           if (profileError) {
             console.error('Failed to create profile record:', profileError);
+            // Surface meaningful error if mentor_id missing vs. RLS error
+            if (profileError.code === '42501') {
+              setErrorMsg(
+                'Account created but profile setup failed: database permission error. ' +
+                'Please contact an admin to run the fix_mentor_rls.sql migration.'
+              );
+            } else {
+              setErrorMsg(`Profile creation failed: ${profileError.message}`);
+            }
+            setLoading(false);
+            return;
           }
 
-          // Manually update mentor students array (for double-safety alongside db trigger)
-          if (effectiveRole === 'student' && selectedMentorId) {
+          // Update mentor's students[] array (runs after profile is saved)
+          // The DB trigger also handles this, but we do it here as a safety net
+          if (effectiveRole === 'student' && resolvedMentorId) {
             try {
-              const { data: mentor } = await supabase
+              const { data: mentorProfile } = await supabase
                 .from('profiles')
-                .select('students')
-                .eq('id', selectedMentorId)
+                .select('id, students')
+                .eq('id', resolvedMentorId)
                 .single();
 
-              if (mentor) {
-                let currentStudents = Array.isArray(mentor.students) ? mentor.students : [];
+              if (mentorProfile) {
                 const studentName = name.trim();
-                if (!currentStudents.includes(studentName)) {
-                  currentStudents.push(studentName);
+                const current: string[] = Array.isArray(mentorProfile.students)
+                  ? mentorProfile.students
+                  : [];
+
+                if (!current.includes(studentName)) {
                   await supabase
                     .from('profiles')
-                    .update({ students: currentStudents })
-                    .eq('id', selectedMentorId);
+                    .update({ students: [...current, studentName] })
+                    .eq('id', resolvedMentorId);
+                  console.log(`Added "${studentName}" to mentor "${resolvedMentorName}" students list.`);
                 }
               }
             } catch (e) {
-              console.warn("Failed to manually sync mentor students array:", e);
+              // Non-fatal: the DB trigger should handle this
+              console.warn('Could not update mentor students array:', e);
             }
           }
         } else {
