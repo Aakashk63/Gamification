@@ -77,6 +77,17 @@ export const Dashboard: React.FC = () => {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [studentTeamName, setStudentTeamName] = useState<string | null>(null);
 
+  const prevUnreadCount = useRef<number | null>(null);
+
+  useEffect(() => {
+    const unreadCount = notifications.filter(n => !n.is_read).length;
+    if (prevUnreadCount.current !== null && unreadCount > prevUnreadCount.current) {
+      const audio = new Audio('/Notification.webm');
+      audio.play().catch(e => console.warn("Failed to play notification audio:", e));
+    }
+    prevUnreadCount.current = unreadCount;
+  }, [notifications]);
+
   const fetchStudentTeam = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();

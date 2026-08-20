@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiUpdateProfileUrls } from '../lib/api';
-import { Share2, CheckCircle, Save, Loader2, Link2, Pencil, Trash2 } from 'lucide-react';
+import { Share2, CheckCircle, Save, Loader2, Link2, Pencil } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { STORE_CATALOG } from '../data/storeCatalog';
 import { useProfile } from '../contexts/ProfileContext';
@@ -344,18 +344,7 @@ export const ProfilePage: React.FC = () => {
                   )}
                 </button>
 
-                {profile?.role === 'mentor' && (
-                  <button 
-                    onClick={() => {
-                      setDeleteStep(1);
-                      setShowDeleteConfirm(true);
-                    }}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-950/20 border border-red-500/30 hover:bg-red-900/20 text-red-400 transition-colors cursor-pointer text-sm font-semibold"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete Profile
-                  </button>
-                )}
+                {/* Delete Profile button removed as requested */}
               </div>
 
               <button
