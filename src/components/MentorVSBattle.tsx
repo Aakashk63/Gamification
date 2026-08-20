@@ -11,6 +11,7 @@ import {
 } from '../lib/api';
 import { useProfile } from '../contexts/ProfileContext';
 import { AvatarImage } from './ui/AvatarImage';
+import { supabase } from '../lib/supabase';
 
 // Module-level cache to prevent full-page reload flashes when switching tabs
 let cachedTeams: any[] | null = null;
@@ -19,6 +20,7 @@ let cachedPerformance: any[] | null = null;
 
 export const MentorVSBattle: React.FC = () => {
   const { profile } = useProfile();
+  const [mentorProfile, setMentorProfile] = useState<any>(null);
   const [teams, setTeams] = useState<any[]>(() => cachedTeams || []);
   const [unassignedStudents, setUnassignedStudents] = useState<any[]>(() => cachedStudents || []);
   const [teamPerformance, setTeamPerformance] = useState<any[]>(() => cachedPerformance || []);
@@ -33,12 +35,32 @@ export const MentorVSBattle: React.FC = () => {
   const [deleteTeamId, setDeleteTeamId] = useState<string | null>(null);
   const [removeStudentInfo, setRemoveStudentInfo] = useState<{ teamId: string; studentId: string; studentName: string } | null>(null);
 
+  const [authUserId, setAuthUserId] = useState<string | null>(null);
+
   const loadData = async (showInitialLoader = false) => {
     if (showInitialLoader && teams.length === 0) {
       setInitialLoading(true);
     }
     setError(null);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated. Please log in again.");
+
+      // Fetch the mentor's profile from profiles
+      const { data: mProfile, error: mError } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, role, students')
+        .eq('id', user.id)
+        .eq('role', 'mentor')
+        .single();
+
+      if (mError) {
+        console.error("Error fetching mentor profile:", mError);
+        throw new Error("Unable to identify mentor profile.");
+      }
+
+      setMentorProfile(mProfile);
+
       const [teamsData, studentsData, performanceData] = await Promise.all([
         apiGetMentorTeams(),
         apiGetUnassignedStudents(),
@@ -59,12 +81,21 @@ export const MentorVSBattle: React.FC = () => {
   };
 
   useEffect(() => {
-    if (profile && profile.role === 'mentor') {
+    supabase.auth.getUser().then((res) => {
+      const user = res.data?.user;
+      if (user) {
+        setAuthUserId(user.id);
+      } else {
+        setInitialLoading(false);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (authUserId) {
       loadData(!cachedTeams);
-    } else {
-      setInitialLoading(false);
     }
-  }, [profile]);
+  }, [authUserId]);
 
   useEffect(() => {
     const handleUpdate = () => {
@@ -85,6 +116,13 @@ export const MentorVSBattle: React.FC = () => {
     setError(null);
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setError("Please log in again.");
+        setCreatingTeam(false);
+        return;
+      }
+
       const created = await apiCreateTeam(teamNameToCreate);
       console.log("Team creation result:", created);
       setNewTeamName('');
@@ -96,6 +134,19 @@ export const MentorVSBattle: React.FC = () => {
 
       setTeams(prev => [...prev, newTeamEntry]);
       cachedTeams = [...(cachedTeams || []), newTeamEntry];
+
+      // Add to Daily Task Monitor immediately
+      const newPerformanceEntry = {
+        id: created.id,
+        name: created.name,
+        memberCount: 0,
+        members: [],
+        completedCount: 0,
+        totalPoints: 0
+      };
+
+      setTeamPerformance(prev => [...prev, newPerformanceEntry]);
+      cachedPerformance = [...(cachedPerformance || []), newPerformanceEntry];
 
       // Silently refresh in background to ensure performance sync
       loadData(false);
@@ -216,8 +267,8 @@ export const MentorVSBattle: React.FC = () => {
       <div className="p-4 rounded-3xl bg-[#111622]/90 border border-white/[0.08] backdrop-blur-xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <AvatarImage
-            src={profile.avatar_url || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'}
-            alt={profile.full_name}
+            src={mentorProfile?.avatar_url || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'}
+            alt={mentorProfile?.full_name || 'Mentor'}
             className="w-12 h-12 rounded-2xl object-cover ring-2 ring-emerald-500/40"
           />
           <div>
@@ -226,7 +277,7 @@ export const MentorVSBattle: React.FC = () => {
                 Mentor Portal
               </span>
             </div>
-            <h3 className="text-base font-black font-heading text-white">{profile.full_name}</h3>
+            <h3 className="text-base font-black font-heading text-white">{mentorProfile?.full_name || 'Mentor'}</h3>
           </div>
         </div>
       </div>

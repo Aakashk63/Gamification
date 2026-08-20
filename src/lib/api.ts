@@ -746,19 +746,44 @@ export async function apiGetUnassignedStudents(): Promise<any[]> {
 
   // 4. Resolve mentor students into profile objects with UUIDs
   let studentProfiles: any[] = [];
-  if (mentorStudentNames.length > 0) {
-    const { data: matchedProfiles } = await supabase
+
+  // Try matching by student's mentor_id UUID first
+  try {
+    const { data: uuidMatched } = await supabase
       .from('profiles')
       .select('id, full_name, avatar_url, role')
       .eq('role', 'student')
-      .in('full_name', mentorStudentNames);
+      .eq('mentor_id', user.id);
 
-    if (matchedProfiles) {
-      studentProfiles = matchedProfiles;
+    if (uuidMatched && uuidMatched.length > 0) {
+      studentProfiles = [...uuidMatched];
+    }
+  } catch (e) {
+    console.warn("apiGetUnassignedStudents UUID match error:", e);
+  }
+
+  // Fallback / merge using students name JSONB list if needed
+  if (mentorStudentNames.length > 0) {
+    try {
+      const { data: nameMatched } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, role')
+        .eq('role', 'student')
+        .in('full_name', mentorStudentNames);
+
+      if (nameMatched) {
+        nameMatched.forEach((nm: any) => {
+          if (!studentProfiles.some(sp => sp.id === nm.id)) {
+            studentProfiles.push(nm);
+          }
+        });
+      }
+    } catch (e) {
+      console.warn("apiGetUnassignedStudents Name match error:", e);
     }
   }
 
-  // If any student name from mentorProfile.students is not yet in studentProfiles, add an entry
+  // If any student name from mentorProfile.students is still not resolved, add a placeholder
   mentorStudentNames.forEach((name: string) => {
     if (!studentProfiles.some(sp => sp.full_name?.trim().toLowerCase() === name.trim().toLowerCase())) {
       studentProfiles.push({
