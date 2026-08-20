@@ -70,6 +70,7 @@ export const MentorVSBattle: React.FC = () => {
 
     try {
       const created = await apiCreateTeam(teamNameToCreate);
+      console.log("Team creation result:", created);
       setNewTeamName('');
       
       const newTeamEntry = {
