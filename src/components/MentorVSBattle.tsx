@@ -66,6 +66,16 @@ export const MentorVSBattle: React.FC = () => {
     }
   }, [profile]);
 
+  useEffect(() => {
+    const handleUpdate = () => {
+      loadData(false);
+    };
+    window.addEventListener('team-invitation-status-changed', handleUpdate);
+    return () => {
+      window.removeEventListener('team-invitation-status-changed', handleUpdate);
+    };
+  }, []);
+
   const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTeamName.trim() || creatingTeam) return;
@@ -268,76 +278,149 @@ export const MentorVSBattle: React.FC = () => {
 
           {/* Teams and Unassigned Students */}
           <div className="space-y-4">
-            {teams.map(team => (
-              <div key={team.id} className="p-5 rounded-3xl bg-[#111622]/90 border border-white/[0.08] shadow-xl relative">
-                <div className="flex justify-between items-center mb-3">
-                  <div className="flex items-center gap-2">
-                    <h5 className="font-bold text-white uppercase tracking-wide">{team.name}</h5>
-                    <button
-                      type="button"
-                      onClick={() => setDeleteTeamId(team.id)}
-                      className="p-1 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
-                      title="Delete Team"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    (team.team_members?.length || 0) >= 4 
-                      ? 'bg-red-500/10 text-red-400 border-red-500/20' 
-                      : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                  }`}>
-                    {team.team_members?.length || 0} / 4 Members
-                  </span>
-                </div>
-                
-                <div className="space-y-2 mb-4">
-                  {(team.team_members || []).map((m: any) => (
-                    <div 
-                      key={m.id || m.student_id} 
-                      className="group flex items-center justify-between p-2.5 rounded-xl bg-slate-900/50 border border-white/[0.02] hover:border-white/[0.05] hover:bg-slate-900/80 transition-all duration-200"
-                    >
-                      <div className="flex items-center gap-3">
-                        <AvatarImage 
-                          src={m.profiles?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'} 
-                          alt={m.profiles?.full_name || 'Student'} 
-                          className="w-8 h-8 rounded-lg object-cover ring-1 ring-white/10" 
-                        />
-                        <div>
-                          <div className="text-xs font-bold text-slate-200">{m.profiles?.full_name || 'Student'}</div>
-                          <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Student</div>
-                        </div>
-                      </div>
+            {teams.map(team => {
+              const acceptedMembers = (team.team_members || []).filter((m: any) => !m.status || m.status === 'accepted');
+              const pendingMembers = (team.team_members || []).filter((m: any) => m.status === 'pending');
+              const declinedMembers = (team.team_members || []).filter((m: any) => m.status === 'declined');
+
+              return (
+                <div key={team.id} className="p-5 rounded-3xl bg-[#111622]/90 border border-white/[0.08] shadow-xl relative">
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="flex items-center gap-2">
+                      <h5 className="font-bold text-white uppercase tracking-wide">{team.name}</h5>
                       <button
                         type="button"
-                        onClick={() => setRemoveStudentInfo({ teamId: team.id, studentId: m.student_id, studentName: m.profiles?.full_name || 'Student' })}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150 cursor-pointer"
-                        title="Remove Student"
+                        onClick={() => setDeleteTeamId(team.id)}
+                        className="p-1 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                        title="Delete Team"
                       >
-                        <UserMinus className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                  ))}
-                  {(!team.team_members || team.team_members.length === 0) && (
-                    <div className="text-xs text-slate-500 italic py-2">No members yet</div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      acceptedMembers.length >= 4 
+                        ? 'bg-red-500/10 text-red-400 border-red-500/20' 
+                        : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    }`}>
+                      {acceptedMembers.length} / 4 Members
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2 mb-4">
+                    {/* Accepted Members */}
+                    {acceptedMembers.map((m: any) => (
+                      <div 
+                        key={m.id || m.student_id} 
+                        className="group flex items-center justify-between p-2.5 rounded-xl bg-slate-900/50 border border-white/[0.02] hover:border-white/[0.05] hover:bg-slate-900/80 transition-all duration-200"
+                      >
+                        <div className="flex items-center gap-3">
+                          <AvatarImage 
+                            src={m.profiles?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'} 
+                            alt={m.profiles?.full_name || 'Student'} 
+                            className="w-8 h-8 rounded-lg object-cover ring-1 ring-white/10" 
+                          />
+                          <div>
+                            <div className="text-xs font-bold text-slate-200">{m.profiles?.full_name || 'Student'}</div>
+                            <div className="text-[9px] text-emerald-400 font-extrabold uppercase tracking-wider">ACCEPTED</div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setRemoveStudentInfo({ teamId: team.id, studentId: m.student_id, studentName: m.profiles?.full_name || 'Student' })}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150 cursor-pointer"
+                          title="Remove Student"
+                        >
+                          <UserMinus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+
+                    {acceptedMembers.length === 0 && pendingMembers.length === 0 && declinedMembers.length === 0 && (
+                      <div className="text-xs text-slate-500 italic py-2">No members yet</div>
+                    )}
+
+                    {/* Pending Invitations */}
+                    {pendingMembers.length > 0 && (
+                      <div className="mt-4 pt-3 border-t border-white/[0.06] space-y-2">
+                        <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                          Pending Invitations
+                        </div>
+                        {pendingMembers.map((m: any) => (
+                          <div 
+                            key={m.id || m.student_id} 
+                            className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/30 border border-dashed border-white/[0.06]"
+                          >
+                            <div className="flex items-center gap-3">
+                              <AvatarImage 
+                                src={m.profiles?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'} 
+                                alt={m.profiles?.full_name || 'Student'} 
+                                className="w-8 h-8 rounded-lg object-cover ring-1 ring-white/10 opacity-60" 
+                              />
+                              <div>
+                                <div className="text-xs font-bold text-slate-400">{m.profiles?.full_name || 'Student'}</div>
+                                <div className="text-[9px] text-amber-500 font-extrabold uppercase tracking-wider">PENDING</div>
+                              </div>
+                            </div>
+                            <span className="text-[9px] font-extrabold text-amber-500/80 uppercase px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+                              Invited
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Declined Invitations */}
+                    {declinedMembers.length > 0 && (
+                      <div className="mt-4 pt-3 border-t border-white/[0.06] space-y-2">
+                        <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                          Declined Invitations
+                        </div>
+                        {declinedMembers.map((m: any) => (
+                          <div 
+                            key={m.id || m.student_id} 
+                            className="flex items-center justify-between p-2.5 rounded-xl bg-red-950/10 border border-red-500/10"
+                          >
+                            <div className="flex items-center gap-3">
+                              <AvatarImage 
+                                src={m.profiles?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'} 
+                                alt={m.profiles?.full_name || 'Student'} 
+                                className="w-8 h-8 rounded-lg object-cover ring-1 ring-white/10 opacity-50" 
+                              />
+                              <div>
+                                <div className="text-xs font-bold text-slate-500 line-through">{m.profiles?.full_name || 'Student'}</div>
+                                <div className="text-[9px] text-red-500 font-extrabold uppercase tracking-wider">DECLINED</div>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setRemoveStudentInfo({ teamId: team.id, studentId: m.student_id, studentName: m.profiles?.full_name || 'Student' })}
+                              className="p-1 rounded hover:bg-red-500/10 text-red-400 transition-colors"
+                              title="Remove Declined Invite"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Add Student Dropdown (Only if accepted + pending < 4) */}
+                  {(acceptedMembers.length + pendingMembers.length) < 4 ? (
+                    <CustomDropdown
+                      teamId={team.id}
+                      unassignedStudents={unassignedStudents}
+                      assigningTeamId={assigningTeamId}
+                      onSelect={(val) => handleAssignStudent(team.id, val)}
+                    />
+                  ) : (
+                    <div className="text-center p-2.5 rounded-xl bg-slate-900/50 border border-white/[0.02] text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Team Full — 4 / 4 Members
+                    </div>
                   )}
                 </div>
-
-                {/* Add Student Dropdown (Only if < 4) */}
-                {(team.team_members?.length || 0) < 4 ? (
-                  <CustomDropdown
-                    teamId={team.id}
-                    unassignedStudents={unassignedStudents}
-                    assigningTeamId={assigningTeamId}
-                    onSelect={(val) => handleAssignStudent(team.id, val)}
-                  />
-                ) : (
-                  <div className="text-center p-2.5 rounded-xl bg-slate-900/50 border border-white/[0.02] text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Team Full — 4 / 4 Members
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
 
             {teams.length === 0 && (
               <div className="p-8 text-center text-slate-500 bg-[#10141f]/50 rounded-3xl border border-white/[0.04]">

@@ -138,6 +138,32 @@ export async function apiCreatePost(caption: string, imageUrl: string | null, vi
     .single();
 
   if (error) throw error;
+
+  // Notify all students
+  try {
+    const { data: students } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('role', 'student');
+
+    if (students && students.length > 0) {
+      const notifications = students.map(s => ({
+        recipient_id: s.id,
+        sender_id: user.id,
+        type: 'announcement',
+        title: 'New Announcement',
+        message: caption.substring(0, 100) + (caption.length > 100 ? '...' : ''),
+        announcement_id: data.id,
+        status: 'unread',
+        is_read: false
+      }));
+
+      await supabase.from('notifications').insert(notifications);
+    }
+  } catch (err) {
+    console.warn("Failed to create announcement notifications:", err);
+  }
+
   return data;
 }
 
@@ -587,6 +613,7 @@ export async function apiGetMentorTeams(): Promise<any[]> {
         id,
         team_id,
         student_id,
+        status,
         profiles (id, full_name, avatar_url, role)
       )
     `)
@@ -612,7 +639,7 @@ export async function apiGetMentorTeams(): Promise<any[]> {
     const teamIds = rawTeams.map(t => t.id);
     const { data: members } = await supabase
       .from('team_members')
-      .select('*')
+      .select('id, team_id, student_id, status')
       .in('team_id', teamIds);
 
     const studentIds = (members || []).map(m => m.student_id);
@@ -640,6 +667,7 @@ export async function apiGetMentorTeams(): Promise<any[]> {
     ...t,
     team_members: (t.team_members || []).map((m: any) => ({
       ...m,
+      status: m.status || 'accepted',
       profiles: m.profiles || { full_name: 'Student', avatar_url: '' }
     }))
   }));
@@ -700,7 +728,7 @@ export async function apiGetUnassignedStudents(): Promise<any[]> {
   if (teamIds.length > 0) {
     const { data: members, error: tmError } = await supabase
       .from('team_members')
-      .select('id, team_id, student_id, profiles (id, full_name)')
+      .select('id, team_id, student_id, status, profiles (id, full_name)')
       .in('team_id', teamIds);
 
     if (tmError) {
@@ -708,8 +736,10 @@ export async function apiGetUnassignedStudents(): Promise<any[]> {
     } else if (members) {
       allTeamMembers = members;
       members.forEach((m: any) => {
-        if (m.student_id) assignedStudentIds.add(m.student_id);
-        if (m.profiles?.full_name) assignedStudentNames.add(m.profiles.full_name.trim().toLowerCase());
+        if (m.status !== 'declined') {
+          if (m.student_id) assignedStudentIds.add(m.student_id);
+          if (m.profiles?.full_name) assignedStudentNames.add(m.profiles.full_name.trim().toLowerCase());
+        }
       });
     }
   }
@@ -772,7 +802,6 @@ export async function apiAddStudentToTeam(teamId: string, studentIdOrName: strin
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(studentIdOrName);
 
   if (!isUuid) {
-    // Look up student profile by full_name
     const { data: student } = await supabase
       .from('profiles')
       .select('id, full_name, avatar_url')
@@ -797,42 +826,95 @@ export async function apiAddStudentToTeam(teamId: string, studentIdOrName: strin
     }
   }
 
-  // 2. Check team member limit (Maximum 4 members)
-  const { count, error: countError } = await supabase
+  // 2. Count current accepted and pending members
+  const { count: acceptedCount } = await supabase
     .from('team_members')
     .select('*', { count: 'exact', head: true })
-    .eq('team_id', teamId);
-    
-  if (countError) {
-    console.warn("apiAddStudentToTeam count check error:", countError);
-  }
-  if (count !== null && count >= 4) {
-    throw new Error("Each team can have a maximum of 4 students.");
+    .eq('team_id', teamId)
+    .eq('status', 'accepted');
+
+  const { count: pendingCount } = await supabase
+    .from('team_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('team_id', teamId)
+    .eq('status', 'pending');
+
+  const totalPossible = (acceptedCount || 0) + (pendingCount || 0);
+  if (totalPossible >= 4) {
+    throw new Error("This team already has 4 active members or pending invitations.");
   }
 
-  // 3. Duplicate check
-  const { data: existingMember } = await supabase
+  // 3. Duplicate checks
+  const { data: memberInThisTeam } = await supabase
     .from('team_members')
-    .select('id')
+    .select('status')
     .eq('team_id', teamId)
     .eq('student_id', studentUuid)
     .maybeSingle();
-    
-  if (existingMember) {
-    throw new Error("Student is already in this team.");
+
+  if (memberInThisTeam) {
+    if (memberInThisTeam.status === 'accepted') {
+      throw new Error("Student is already a member of this team.");
+    }
+    if (memberInThisTeam.status === 'pending') {
+      throw new Error("Invitation already pending.");
+    }
   }
 
-  // 4. Insert into public.team_members
+  const { data: memberInOtherTeam } = await supabase
+    .from('team_members')
+    .select('status')
+    .eq('student_id', studentUuid)
+    .eq('status', 'accepted')
+    .maybeSingle();
+
+  if (memberInOtherTeam) {
+    throw new Error("Student is already assigned to another team.");
+  }
+
+  // Clear any existing declined or pending records to avoid unique constraint violations
+  await supabase
+    .from('team_members')
+    .delete()
+    .eq('student_id', studentUuid);
+
+  // 4. Insert into public.team_members with status='pending'
   const { data, error } = await supabase
     .from('team_members')
-    .insert({ team_id: teamId, student_id: studentUuid })
+    .insert({ team_id: teamId, student_id: studentUuid, status: 'pending' })
     .select('*, profiles (id, full_name, avatar_url, role)')
     .single();
 
   if (error) {
     console.error("apiAddStudentToTeam insert error:", error);
-    if (error.code === '23505') throw new Error("Student is already in this team.");
     throw error;
+  }
+
+  // Fetch team name for the notification message
+  const { data: teamData } = await supabase
+    .from('teams')
+    .select('name')
+    .eq('id', teamId)
+    .single();
+  const teamName = teamData?.name || 'Team';
+
+  // Create notifications row for student
+  const { error: notifError } = await supabase
+    .from('notifications')
+    .insert({
+      recipient_id: studentUuid,
+      sender_id: user.id,
+      type: 'team_invitation',
+      title: 'Team Invitation',
+      message: `${user.user_metadata?.name || 'A mentor'} has invited you to join ${teamName}.`,
+      team_id: teamId,
+      team_name: teamName,
+      status: 'unread',
+      is_read: false
+    });
+
+  if (notifError) {
+    console.warn("Failed to create student notification:", notifError);
   }
 
   return data;
@@ -908,16 +990,18 @@ export async function apiGetMentorTeamPerformance(): Promise<any[]> {
 
   // Format response for Daily Task Monitor
   return teams.map(team => {
-    const members = (team.team_members || []).map((m: any) => {
-      const isCompleted = completionsMap.has(m.student_id);
-      return {
-        id: m.student_id,
-        name: m.profiles?.full_name || 'Student',
-        avatar: m.profiles?.avatar_url || '',
-        completed: isCompleted,
-        points: isCompleted ? completionsMap.get(m.student_id) : 0
-      };
-    });
+    const members = (team.team_members || [])
+      .filter((m: any) => !m.status || m.status === 'accepted')
+      .map((m: any) => {
+        const isCompleted = completionsMap.has(m.student_id);
+        return {
+          id: m.student_id,
+          name: m.profiles?.full_name || 'Student',
+          avatar: m.profiles?.avatar_url || '',
+          completed: isCompleted,
+          points: isCompleted ? completionsMap.get(m.student_id) : 0
+        };
+      });
 
     const completedCount = members.filter((m: any) => m.completed).length;
     const totalPoints = members.reduce((sum: number, m: any) => sum + m.points, 0);

@@ -71,6 +71,154 @@ export const Dashboard: React.FC = () => {
   // Ref for the profile popup container to handle click outside
   const profileDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Notifications State & Refs
+  const notificationRef = useRef<HTMLDivElement>(null);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [studentTeamName, setStudentTeamName] = useState<string | null>(null);
+
+  const fetchStudentTeam = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const { data: memberData } = await supabase
+        .from('team_members')
+        .select('team_id, status, teams (name)')
+        .eq('student_id', user.id)
+        .eq('status', 'accepted')
+        .maybeSingle();
+
+      if (memberData && memberData.teams) {
+        setStudentTeamName((memberData.teams as any).name);
+      } else {
+        setStudentTeamName(null);
+      }
+    } catch (e) {
+      console.error("fetchStudentTeam error:", e);
+    }
+  };
+
+  const fetchNotifications = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('recipient_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setNotifications(data || []);
+    } catch (err) {
+      console.error("fetchNotifications error:", err);
+    }
+  };
+
+  const handleMarkAsRead = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', id);
+      if (error) throw error;
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    } catch (err) {
+      console.error("handleMarkAsRead error:", err);
+    }
+  };
+
+  const handleAcceptInvite = async (n: any) => {
+    try {
+      const { error: tmError } = await supabase
+        .from('team_members')
+        .update({ status: 'accepted' })
+        .eq('team_id', n.team_id)
+        .eq('student_id', n.recipient_id);
+
+      if (tmError) throw tmError;
+
+      const { error: nError } = await supabase
+        .from('notifications')
+        .update({ status: 'accepted', is_read: true })
+        .eq('id', n.id);
+
+      if (nError) throw nError;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', n.recipient_id)
+        .single();
+      
+      const studentName = profile?.full_name || 'A student';
+
+      await supabase.from('notifications').insert({
+        recipient_id: n.sender_id,
+        sender_id: n.recipient_id,
+        type: 'team_invitation_accepted',
+        title: 'Team Invitation Accepted',
+        message: `${studentName} accepted your invitation to join Team ${n.team_name || 'TITANS'}.`,
+        team_id: n.team_id,
+        team_name: n.team_name,
+        status: 'unread',
+        is_read: false
+      });
+
+      fetchNotifications();
+      window.dispatchEvent(new Event('team-invitation-status-changed'));
+    } catch (err: any) {
+      console.error("handleAcceptInvite error:", err);
+      alert(err.message || "Failed to accept invitation");
+    }
+  };
+
+  const handleDeclineInvite = async (n: any) => {
+    try {
+      const { error: tmError } = await supabase
+        .from('team_members')
+        .delete()
+        .eq('team_id', n.team_id)
+        .eq('student_id', n.recipient_id);
+
+      if (tmError) throw tmError;
+
+      const { error: nError } = await supabase
+        .from('notifications')
+        .update({ status: 'declined', is_read: true })
+        .eq('id', n.id);
+
+      if (nError) throw nError;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', n.recipient_id)
+        .single();
+      
+      const studentName = profile?.full_name || 'A student';
+
+      await supabase.from('notifications').insert({
+        recipient_id: n.sender_id,
+        sender_id: n.recipient_id,
+        type: 'team_invitation_declined',
+        title: 'Team Invitation Declined',
+        message: `${studentName} declined your invitation to join Team ${n.team_name || 'TITANS'}.`,
+        team_id: n.team_id,
+        team_name: n.team_name,
+        status: 'unread',
+        is_read: false
+      });
+
+      fetchNotifications();
+      window.dispatchEvent(new Event('team-invitation-status-changed'));
+    } catch (err: any) {
+      console.error("handleDeclineInvite error:", err);
+      alert(err.message || "Failed to decline invitation");
+    }
+  };
+
   useEffect(() => {
     // Handle click outside to close profile dropdown
     const handleClickOutside = (event: MouseEvent) => {
@@ -87,14 +235,69 @@ export const Dashboard: React.FC = () => {
     };
   }, [isProfileDropdownOpen]);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setIsNotificationOpen(false);
+      }
+    };
+    if (isNotificationOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isNotificationOpen]);
+
   React.useEffect(() => {
     apiGetDashboardStats().then(setDashboardStats).catch(console.error);
+    fetchNotifications();
+    if (globalProfile?.role === 'student') {
+      fetchStudentTeam();
+    }
 
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      console.log("Authenticated user:", user);
-      console.log("Mentor profile:", globalProfile);
-      console.log("Mentor avatar:", globalProfile?.avatar_url);
-    });
+    // Listen for database changes via realtime subscription
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications'
+        },
+        () => {
+          fetchNotifications();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'team_members'
+        },
+        () => {
+          if (globalProfile?.role === 'student') {
+            fetchStudentTeam();
+          }
+        }
+      )
+      .subscribe();
+
+    // Listen for team changes
+    const handleUpdateEvent = () => {
+      fetchNotifications();
+      if (globalProfile?.role === 'student') {
+        fetchStudentTeam();
+      }
+    };
+    window.addEventListener('team-invitation-status-changed', handleUpdateEvent);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('team-invitation-status-changed', handleUpdateEvent);
+    };
   }, [globalProfile]);
 
   const handleLogout = async () => {
@@ -151,6 +354,179 @@ export const Dashboard: React.FC = () => {
               )}
             </div>
 
+            {/* Notification Bell */}
+            <div className="relative" ref={notificationRef}>
+              <button 
+                onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                className="p-2 rounded-xl bg-slate-900/60 border border-white/[0.08] hover:border-emerald-500/40 hover:text-white text-slate-400 hover:bg-slate-900/90 transition-all cursor-pointer relative flex items-center justify-center"
+                title="Notifications"
+              >
+                <Bell className="w-4 h-4" />
+                {notifications.filter(n => !n.is_read).length > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[9px] font-black text-slate-950 animate-pulse">
+                    {notifications.filter(n => !n.is_read).length}
+                  </span>
+                )}
+              </button>
+
+              {isNotificationOpen && (
+                <div 
+                  className="absolute right-0 mt-3 w-80 bg-[#0c101a]/95 backdrop-blur-xl rounded-xl shadow-2xl z-50 overflow-hidden border border-white/10 p-3 space-y-3 max-h-96 overflow-y-auto animate-in slide-in-from-top-2 fade-in duration-200"
+                  style={{
+                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 18px 2px rgba(16, 185, 129, 0.05)',
+                  }}
+                >
+                  <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
+                    <span className="text-xs font-black uppercase text-slate-200 tracking-wider">
+                      Notifications
+                    </span>
+                    {notifications.filter(n => !n.is_read).length > 0 && (
+                      <button 
+                        onClick={async () => {
+                          const { data: { user } } = await supabase.auth.getUser();
+                          if (!user) return;
+                          await supabase.from('notifications').update({ is_read: true }).eq('recipient_id', user.id);
+                          fetchNotifications();
+                        }}
+                        className="text-[9px] font-black text-emerald-400 hover:underline cursor-pointer uppercase"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    {notifications.length === 0 ? (
+                      <div className="text-center py-6 text-xs text-slate-500 italic">
+                        No notifications yet
+                      </div>
+                    ) : (
+                      notifications.map(n => {
+                        if (n.type === 'team_invitation') {
+                          return (
+                            <div key={n.id} className={`p-3 rounded-xl border text-left transition-all ${
+                              n.is_read 
+                                ? 'bg-slate-900/40 border-white/[0.04] opacity-75' 
+                                : 'bg-[#10141f] border-emerald-500/20'
+                            }`}>
+                              <div className="flex items-start gap-2 justify-between">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
+                                  <span className="text-[10px] font-black text-emerald-400 uppercase tracking-wider">
+                                    Team Invitation
+                                  </span>
+                                </div>
+                                <span className="text-[9px] text-slate-500">
+                                  {new Date(n.created_at).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <p className="text-xs text-white font-bold mt-1">
+                                Invited to join {n.team_name || 'Team'}
+                              </p>
+                              <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                                {n.message}
+                              </p>
+                              
+                              {(n.status === 'unread' || n.status === 'read' || !n.status) ? (
+                                <div className="flex gap-2 mt-3 justify-end">
+                                  <button 
+                                    onClick={() => handleDeclineInvite(n)}
+                                    className="px-2.5 py-1 rounded bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 font-bold text-[9px] uppercase cursor-pointer"
+                                  >
+                                    Decline
+                                  </button>
+                                  <button 
+                                    onClick={() => handleAcceptInvite(n)}
+                                    className="px-2.5 py-1 rounded bg-emerald-500 text-slate-950 font-bold text-[9px] uppercase cursor-pointer"
+                                  >
+                                    Accept
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className={`inline-block mt-2 text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                                  n.status === 'accepted' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                }`}>
+                                  {n.status}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        if (n.type === 'announcement') {
+                          return (
+                            <div 
+                              key={n.id}
+                              onClick={() => {
+                                handleMarkAsRead(n.id);
+                                navigate('/announcement');
+                                setIsNotificationOpen(false);
+                              }}
+                              className={`p-3 rounded-xl border text-left cursor-pointer transition-all hover:bg-slate-900/70 ${
+                                n.is_read 
+                                  ? 'bg-slate-900/40 border-white/[0.04] opacity-75' 
+                                  : 'bg-[#10141f] border-indigo-500/20'
+                              }`}
+                            >
+                              <div className="flex items-start gap-2 justify-between">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>
+                                  <span className="text-[10px] font-black text-indigo-400 uppercase tracking-wider">
+                                    Announcement
+                                  </span>
+                                </div>
+                                <span className="text-[9px] text-slate-500">
+                                  {new Date(n.created_at).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <p className="text-xs text-white font-bold mt-1">
+                                {n.title}
+                              </p>
+                              <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed truncate">
+                                {n.message}
+                              </p>
+                              <div className="mt-2 text-right">
+                                <span className="text-[9px] text-indigo-400 font-bold hover:underline">
+                                  View Announcement &rarr;
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div 
+                            key={n.id}
+                            onClick={() => handleMarkAsRead(n.id)}
+                            className={`p-3 rounded-xl border text-left transition-all ${
+                              n.is_read 
+                                ? 'bg-slate-900/40 border-white/[0.04] opacity-75' 
+                                : 'bg-[#10141f] border-white/[0.08]'
+                            }`}
+                          >
+                            <div className="flex items-start gap-2 justify-between">
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                                Notification
+                              </span>
+                              <span className="text-[9px] text-slate-500">
+                                {new Date(n.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <p className="text-xs text-white font-bold mt-1">
+                              {n.title}
+                            </p>
+                            <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                              {n.message}
+                            </p>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* User info & Dropdown Trigger */}
             <div className="relative" ref={profileDropdownRef}>
               <button 
@@ -178,9 +554,14 @@ export const Dashboard: React.FC = () => {
                   ) : (
                     <>
                       <div className="text-[11px] font-bold text-white leading-tight">{profile.name}</div>
-                      <div className="text-[9px] text-emerald-400 font-semibold flex items-center gap-0.5 uppercase tracking-wider">
+                      <div className="text-[9px] text-emerald-400 font-semibold flex items-center gap-1.5 uppercase tracking-wider">
                         <Trophy className="w-2 h-2" />
                         <span>{profile.role} Portal</span>
+                        {globalProfile?.role === 'student' && studentTeamName && (
+                          <span className="text-[9px] font-bold text-slate-400 px-1 py-0.2 bg-slate-950 rounded border border-white/5 lowercase">
+                            team: {studentTeamName}
+                          </span>
+                        )}
                       </div>
                     </>
                   )}
@@ -218,6 +599,11 @@ export const Dashboard: React.FC = () => {
                           <div className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">
                             {profile?.department || 'B.E CSE'}
                           </div>
+                          {globalProfile?.role === 'student' && studentTeamName && (
+                            <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider mt-0.5">
+                              Team: {studentTeamName}
+                            </div>
+                          )}
                         </div>
                         
                         <div className="ml-auto">
