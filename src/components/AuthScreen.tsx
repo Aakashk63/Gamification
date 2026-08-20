@@ -26,6 +26,12 @@ import {
   Loader2
 } from 'lucide-react';
 
+const getErrorMessage = (error: any): string => {
+  if (!error) return 'An unknown error occurred.';
+  if (typeof error === 'string') return error;
+  return error.message || error.details || error.hint || JSON.stringify(error);
+};
+
 interface AuthScreenProps {
   onAuthSuccess: (session: any) => void;
 }
@@ -210,7 +216,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         }, 800);
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'An error occurred during authentication.');
+      console.error('Signup/Login error:', {
+        message: err?.message,
+        code: err?.code,
+        details: err?.details,
+        hint: err?.hint,
+        error: err
+      });
+      setErrorMsg(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
