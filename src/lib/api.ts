@@ -391,64 +391,133 @@ export async function apiGetTasks(): Promise<ApiTask[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  // Fetch all tasks
-  const { data: dbTasks, error: tasksError } = await supabase
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  // 1. Fetch all tasks from public.tasks
+  let { data: dbTasks, error: tasksError } = await supabase
     .from('tasks')
-    .select('*');
-    
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (tasksError) {
+    console.warn("apiGetTasks: Error fetching tasks from DB:", tasksError);
+  }
+
   let tasks: ApiTask[] = [];
-  if (!tasksError && dbTasks) {
+  if (dbTasks && dbTasks.length > 0) {
     tasks = dbTasks.map(t => ({
       id: t.id,
       title: t.title,
-      description: t.description,
+      description: t.description || '',
       points: t.points || 5,
       category: t.category || 'individual',
-      type: t.type || t.task_type || 'special',
+      type: t.type || t.task_type || 'daily',
       is_leetcode: t.is_leetcode || false,
       created_at: t.created_at || new Date().toISOString()
     }));
   }
 
-  // ALWAYS inject the default LeetCode daily task
-  const defaultLeetCodeTask: ApiTask = {
-    id: 'default-leetcode-daily',
-    title: 'Complete LeetCode Sum',
-    description: 'Solve any problem on LeetCode today to earn points!',
-    points: 5,
-    category: 'individual',
-    type: 'daily',
-    is_leetcode: true,
-    created_at: new Date().toISOString()
-  };
+  // 2. Safe "get or create today's daily task" flow in Supabase public.tasks
+  const existingDailyTask = tasks.find(t => 
+    t.is_leetcode && 
+    t.type === 'daily' && 
+    ((t as any).task_date === today || dbTasks?.some((d: any) => d.id === t.id && (d.task_date === today || d.created_at?.startsWith(today))))
+  );
 
-  if (!tasks.find(t => t.is_leetcode)) {
-    tasks.unshift(defaultLeetCodeTask);
+  if (!existingDailyTask) {
+    // Attempt to insert today's daily task into public.tasks
+    try {
+      const { data: newTask, error: insertError } = await supabase
+        .from('tasks')
+        .insert({
+          title: 'Complete LeetCode Sum',
+          description: 'Solve any problem on LeetCode today to earn points!',
+          points: 5,
+          category: 'individual',
+          task_type: 'daily',
+          type: 'daily',
+          is_leetcode: true,
+          task_date: today,
+          created_by: user.id
+        })
+        .select('*')
+        .maybeSingle();
+
+      if (!insertError && newTask) {
+        tasks.unshift({
+          id: newTask.id,
+          title: newTask.title,
+          description: newTask.description,
+          points: newTask.points || 5,
+          category: newTask.category || 'individual',
+          type: newTask.type || newTask.task_type || 'daily',
+          is_leetcode: newTask.is_leetcode || false,
+          created_at: newTask.created_at || new Date().toISOString()
+        });
+      }
+    } catch (err) {
+      console.warn("Could not insert daily task into public.tasks:", err);
+    }
   }
 
-  // Fetch today's completions
-  let completedTaskIds = new Set<string>();
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const { data: completions, error: completionsError } = await supabase
-    .from('daily_task_completions')
-    .select('task_id')
-    .eq('student_id', user.id)
-    .eq('task_date', today);
-
-  if (!completionsError && completions) {
-    completedTaskIds = new Set(completions.map(c => c.task_id));
+  // If tasks is still empty (e.g. empty table and insert blocked), provide standard task shape
+  if (tasks.length === 0) {
+    tasks = [
+      {
+        id: 'default-leetcode-daily',
+        title: 'Complete LeetCode Sum',
+        description: 'Solve any problem on LeetCode today to earn points!',
+        points: 5,
+        category: 'individual',
+        type: 'daily',
+        is_leetcode: true,
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'default-leetcode-weekly',
+        title: 'Complete 3 LeetCode Sums',
+        description: 'Solve 3 problems on LeetCode this week.',
+        points: 20,
+        category: 'individual',
+        type: 'weekly',
+        is_leetcode: false,
+        created_at: new Date().toISOString()
+      }
+    ];
   }
-  
-  // Fallback to localStorage if DB table is missing
+
+  // 3. Fetch completions from public.task_completions and public.daily_task_completions
+  const completedTaskIds = new Set<string>();
+
+  // Check public.task_completions
   try {
-    const localCompletions = JSON.parse(localStorage.getItem(`campusxp_completed_tasks_${today}`) || '[]');
-    localCompletions.forEach((id: string) => completedTaskIds.add(id));
-  } catch(e) {}
+    const { data: completions, error: cErr } = await supabase
+      .from('task_completions')
+      .select('task_id')
+      .eq('student_id', user.id);
+
+    if (!cErr && completions) {
+      completions.forEach((c: any) => completedTaskIds.add(String(c.task_id)));
+    }
+  } catch (e) {}
+
+  // Check public.daily_task_completions for today
+  try {
+    const { data: dailyCompletions, error: dcErr } = await supabase
+      .from('daily_task_completions')
+      .select('task_id')
+      .eq('student_id', user.id)
+      .eq('task_date', today);
+
+    if (!dcErr && dailyCompletions) {
+      dailyCompletions.forEach((c: any) => completedTaskIds.add(String(c.task_id)));
+    }
+  } catch (e) {}
 
   return tasks.map(task => ({
     ...task,
-    completed: completedTaskIds.has(task.id)
+    completed: completedTaskIds.has(String(task.id))
   }));
 }
 
@@ -456,33 +525,38 @@ export async function apiCompleteTask(taskId: string, points: number, isTeamTask
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  // 1. Insert daily completion record
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const { error: completionError } = await supabase
-    .from('daily_task_completions')
-    .insert({ 
-      student_id: user.id, 
-      task_id: taskId,
-      task_date: today,
-      points_earned: points
-    });
 
-  if (completionError) {
-    if (completionError.code === '23505') {
-      throw new Error("Task already completed today");
-    }
-    console.warn("Could not save daily task completion to DB (table might be missing), awarding points anyway.", completionError);
-    // Fallback to local storage
-    try {
-      const localCompletions = JSON.parse(localStorage.getItem(`campusxp_completed_tasks_${today}`) || '[]');
-      if (!localCompletions.includes(taskId)) {
-        localStorage.setItem(`campusxp_completed_tasks_${today}`, JSON.stringify([...localCompletions, taskId]));
-      }
-    } catch(e) {}
+  // 1. Insert completion into public.task_completions
+  try {
+    await supabase
+      .from('task_completions')
+      .insert({ 
+        student_id: user.id, 
+        task_id: taskId,
+        task_date: today,
+        points_earned: points
+      });
+  } catch (e) {
+    console.warn("apiCompleteTask: task_completions insert notice:", e);
   }
 
-  // 2. Award points
+  // 2. Also insert into public.daily_task_completions for compatibility
+  try {
+    await supabase
+      .from('daily_task_completions')
+      .insert({ 
+        student_id: user.id, 
+        task_id: taskId,
+        task_date: today,
+        points_earned: points
+      });
+  } catch (e) {
+    console.warn("apiCompleteTask: daily_task_completions insert notice:", e);
+  }
+
+  // 3. Award points to profile
   const { data: profile } = await supabase.from('profiles').select('coins, team_points').eq('id', user.id).single();
   if (!profile) return;
 
@@ -717,17 +791,29 @@ export async function apiGetMentorTeamPerformance(): Promise<any[]> {
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   
-  const { data: completions } = await supabase
-    .from('daily_task_completions')
-    .select('student_id, points_earned')
-    .eq('task_date', today);
+  const completionsMap = new Map<string, number>();
 
-  const completionsMap = new Map();
-  if (completions) {
-    completions.forEach(c => {
-      completionsMap.set(c.student_id, c.points_earned || 0);
-    });
-  }
+  try {
+    const { data: comp1 } = await supabase
+      .from('task_completions')
+      .select('student_id, points_earned, task_date')
+      .eq('task_date', today);
+
+    if (comp1) {
+      comp1.forEach((c: any) => completionsMap.set(c.student_id, c.points_earned || 0));
+    }
+  } catch (e) {}
+
+  try {
+    const { data: comp2 } = await supabase
+      .from('daily_task_completions')
+      .select('student_id, points_earned, task_date')
+      .eq('task_date', today);
+
+    if (comp2) {
+      comp2.forEach((c: any) => completionsMap.set(c.student_id, c.points_earned || 0));
+    }
+  } catch (e) {}
 
   // Format response for Daily Task Monitor
   return teams.map(team => {
