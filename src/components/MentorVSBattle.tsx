@@ -30,6 +30,7 @@ export const MentorVSBattle: React.FC = () => {
   const [assigningTeamId, setAssigningTeamId] = useState<string | null>(null);
   const [newTeamName, setNewTeamName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [orphanedCount, setOrphanedCount] = useState(0);
 
   // Modal states for delete / remove confirmation
   const [deleteTeamId, setDeleteTeamId] = useState<string | null>(null);
@@ -60,6 +61,15 @@ export const MentorVSBattle: React.FC = () => {
       }
 
       setMentorProfile(mProfile);
+
+      // Check orphaned teams count
+      try {
+        const { count } = await supabase
+          .from('teams')
+          .select('*', { count: 'exact', head: true })
+          .is('mentor_id', null);
+        setOrphanedCount(count || 0);
+      } catch (e) {}
 
       const [teamsData, studentsData, performanceData] = await Promise.all([
         apiGetMentorTeams(),
@@ -286,6 +296,13 @@ export const MentorVSBattle: React.FC = () => {
         <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{error}</span>
+        </div>
+      )}
+
+      {orphanedCount > 0 && (
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm flex items-center gap-2">
+          <ShieldAlert className="w-4 h-4 shrink-0 text-amber-400" />
+          <span>Database Notice: {orphanedCount} orphaned teams (mentor_id is NULL) detected in the database. These records are excluded from your workspace.</span>
         </div>
       )}
 
