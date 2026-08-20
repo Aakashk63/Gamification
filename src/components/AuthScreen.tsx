@@ -48,26 +48,37 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   // Mentor list fetched from backend API
   const [mentorList, setMentorList] = useState<ApiMentor[]>([]);
   const [mentorsLoading, setMentorsLoading] = useState(false);
+  const [mentorFetchError, setMentorFetchError] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Fetch mentor list directly from public.profiles table where role = 'mentor'
-  // NOTE: Requires RLS policy "Public can read mentor profiles" to exist in Supabase.
-  // Run src/fix_mentor_rls.sql in Supabase SQL Editor if mentor list is empty.
+  // NOTE: Requires the RLS policy "Public can read mentor profiles" to exist in Supabase.
+  // If mentor list is empty, run src/fix_mentor_rls.sql in your Supabase SQL Editor.
   useEffect(() => {
     const fetchMentors = async () => {
       setMentorsLoading(true);
+      setMentorFetchError(null);
       try {
         const { data, error } = await supabase
           .from('profiles')
           .select('id, full_name, avatar_url, role')
-          .eq('role', 'mentor');
+          .eq('role', 'mentor')
+          .order('full_name', { ascending: true });
 
         if (error) {
-          console.error('Mentor fetch error (likely RLS — run src/fix_mentor_rls.sql):', error);
-          throw error;
+          // Log full error details so developer can diagnose RLS vs. network issues
+          console.error('Mentor fetch FAILED (likely RLS — run src/fix_mentor_rls.sql):', {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint
+          });
+          setMentorFetchError(`Unable to load mentors. ${error.message || 'Please try again.'}`);
+          setMentorList([]);
+          return;
         }
 
         const mapped = (data || []).map((p: any) => ({
@@ -80,14 +91,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
 
         if (mapped.length === 0) {
           console.warn(
-            'Mentor list is empty. If mentors exist in the DB, run src/fix_mentor_rls.sql ' +
-            'in your Supabase SQL Editor to allow public reads of mentor profiles.'
+            'Mentor query succeeded but returned 0 rows. ' +
+            'If mentors exist in public.profiles, run src/fix_mentor_rls.sql in Supabase SQL Editor.'
           );
         }
 
+        setMentorFetchError(null);
         setMentorList(mapped);
-      } catch (err) {
-        console.warn('Could not fetch mentors from public.profiles:', err);
+      } catch (err: any) {
+        console.error('Mentor fetch exception:', err);
+        setMentorFetchError('Unable to load mentors. Please try again.');
         setMentorList([]);
       } finally {
         setMentorsLoading(false);
@@ -494,39 +507,58 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                 </select>
               </div>
 
-              {/* Mentor Selector — dynamically fetched */}
+              {/* Mentor Selector — dynamically fetched from public.profiles */}
               <div className="space-y-1.5 sm:col-span-2">
                 <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1">
                   <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
                   <span>Select Mentor</span>
                   {mentorsLoading && <Loader2 className="w-3 h-3 text-emerald-400 animate-spin ml-1" />}
                 </label>
-                <select
-                  value={selectedMentorId}
-                  onChange={(e) => {
-                    const mentorId = e.target.value;
-                    setSelectedMentorId(mentorId);
-                    const matched = mentorList.find((m) => m.id === mentorId) || null;
-                    setSelectedMentor(matched);
-                  }}
-                  required
-                  disabled={mentorsLoading}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/[0.08] text-xs text-white focus:outline-none focus:border-emerald-400/50 transition-colors disabled:opacity-60"
-                >
-                  <option value="">
-                    {mentorsLoading ? 'Loading mentors from DB...' : mentorList.length === 0 ? 'No mentors found' : '-- Select Your Mentor --'}
-                  </option>
-                  {mentorList.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
+
+                {/* Show fetch error separately from empty list */}
+                {mentorFetchError ? (
+                  <div className="w-full px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold">
+                    {mentorFetchError}
+                    <button
+                      type="button"
+                      onClick={() => window.location.reload()}
+                      className="ml-2 underline text-red-300 hover:text-red-200 cursor-pointer"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    value={selectedMentorId}
+                    onChange={(e) => {
+                      const mentorId = e.target.value;
+                      setSelectedMentorId(mentorId);
+                      const matched = mentorList.find((m) => m.id === mentorId) || null;
+                      setSelectedMentor(matched);
+                    }}
+                    required
+                    disabled={mentorsLoading}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/[0.08] text-xs text-white focus:outline-none focus:border-emerald-400/50 transition-colors disabled:opacity-60"
+                  >
+                    <option value="">
+                      {mentorsLoading
+                        ? 'Loading mentors from database...'
+                        : mentorList.length === 0
+                        ? 'No mentors found in database'
+                        : '-- Select Your Mentor --'}
                     </option>
-                  ))}
-                </select>
+                    {mentorList.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
 
                 {selectedMentor && (
                   <div className="mt-2.5 flex items-center gap-3 p-3 rounded-xl bg-slate-950/60 border border-white/[0.06] backdrop-blur-xl shadow-lg">
-                    <img 
-                      src={selectedMentor.avatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'} 
+                    <img
+                      src={selectedMentor.avatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'}
                       alt={selectedMentor.name}
                       className="w-10 h-10 rounded-xl object-cover ring-2 ring-emerald-500/20"
                     />

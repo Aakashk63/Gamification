@@ -1,83 +1,178 @@
 -- ============================================================================
--- FIX: Mentor Assignment RLS Policies
--- Run this in your Supabase SQL Editor
+-- CampusXP: Complete Backend Fix Migration
+-- Run this in your Supabase SQL Editor → https://supabase.com/dashboard
 -- ============================================================================
 
 -- ============================================================================
--- STEP 1: Fix public.profiles RLS policies
+-- PART 1: Add `status` column to public.team_members
+-- Fixes: "Could not find the 'status' column of 'team_members' in the schema cache"
 -- ============================================================================
 
--- Allow anyone (including unauthenticated users on signup page) to read mentor profiles
--- This is needed so the signup form can populate the mentor dropdown
+ALTER TABLE public.team_members
+ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
+
+-- Add the check constraint only if it doesn't already exist
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints 
+    WHERE constraint_name = 'team_members_status_check' 
+      AND table_name = 'team_members'
+      AND table_schema = 'public'
+  ) THEN
+    ALTER TABLE public.team_members
+    ADD CONSTRAINT team_members_status_check
+    CHECK (status IN ('pending', 'accepted', 'declined'));
+  END IF;
+END $$;
+
+-- Add joined_at column in case it is missing too
+ALTER TABLE public.team_members
+ADD COLUMN IF NOT EXISTS joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+
+-- ============================================================================
+-- PART 2: Fix the UNIQUE constraint on team_members
+-- The old UNIQUE(student_id) prevents re-invitations after decline.
+-- Change to UNIQUE(team_id, student_id) to allow per-team membership tracking.
+-- ============================================================================
+
+ALTER TABLE public.team_members 
+DROP CONSTRAINT IF EXISTS team_members_student_id_key;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'team_members_team_id_student_id_key'
+      AND table_name = 'team_members'
+      AND table_schema = 'public'
+  ) THEN
+    ALTER TABLE public.team_members
+    ADD CONSTRAINT team_members_team_id_student_id_key 
+    UNIQUE (team_id, student_id);
+  END IF;
+END $$;
+
+-- ============================================================================
+-- PART 3: Fix RLS on public.profiles
+-- Allows the signup page to read mentor profiles BEFORE user is authenticated.
+-- Without this, the mentor dropdown shows "No mentors found" during registration.
+-- ============================================================================
+
+-- Ensure RLS is still enabled (DO NOT disable it globally)
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- Drop old/duplicate policies that may conflict
 DROP POLICY IF EXISTS "Public can read mentor profiles" ON public.profiles;
-CREATE POLICY "Public can read mentor profiles" ON public.profiles
-    FOR SELECT USING (role = 'mentor');
+DROP POLICY IF EXISTS "Anyone can read mentor profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Mentors are publicly readable" ON public.profiles;
 
--- Allow authenticated users to read their own profile
+-- Create the safe, minimal SELECT policy for mentor discovery on signup
+-- Only exposes mentor rows to anon and authenticated roles
+CREATE POLICY "Public can read mentor profiles" ON public.profiles
+    FOR SELECT
+    TO anon, authenticated
+    USING (role = 'mentor');
+
+-- Authenticated users can read their own profile
 DROP POLICY IF EXISTS "Users can read own profile" ON public.profiles;
 CREATE POLICY "Users can read own profile" ON public.profiles
-    FOR SELECT USING (auth.uid() = id);
+    FOR SELECT
+    TO authenticated
+    USING (auth.uid() = id);
 
--- Allow authenticated users to read student profiles (needed for mentor portal)
+-- Authenticated users can read all student profiles (needed for mentor portal)
 DROP POLICY IF EXISTS "Authenticated can read student profiles" ON public.profiles;
 CREATE POLICY "Authenticated can read student profiles" ON public.profiles
-    FOR SELECT USING (auth.role() = 'authenticated');
+    FOR SELECT
+    TO authenticated
+    USING (auth.role() = 'authenticated');
 
--- Allow users to INSERT their own profile (needed at signup)
+-- Allow authenticated users to INSERT their own profile (needed during signup)
 DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
 CREATE POLICY "Users can insert own profile" ON public.profiles
-    FOR INSERT WITH CHECK (auth.uid() = id);
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (auth.uid() = id);
 
--- Allow users to UPDATE their own profile
+-- Allow authenticated users to UPDATE their own profile
 DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can update own profile" ON public.profiles
-    FOR UPDATE USING (auth.uid() = id);
+    FOR UPDATE
+    TO authenticated
+    USING (auth.uid() = id);
 
--- Allow mentors to update their own students array (needed when student signs up)
-DROP POLICY IF EXISTS "Mentors can update students list" ON public.profiles;
-CREATE POLICY "Mentors can update students list" ON public.profiles
-    FOR UPDATE USING (auth.role() = 'authenticated');
-
--- ============================================================================
--- STEP 2: Fix team_members UNIQUE constraint
--- The existing UNIQUE(student_id) prevents a student from being in multiple 
--- pending invitations. Change it to UNIQUE(team_id, student_id) instead.
--- ============================================================================
-ALTER TABLE public.team_members DROP CONSTRAINT IF EXISTS team_members_student_id_key;
-ALTER TABLE public.team_members ADD CONSTRAINT IF NOT EXISTS team_members_team_id_student_id_key UNIQUE (team_id, student_id);
+-- Allow any authenticated user to update a mentor profile's students[] array
+-- (needed when a student signs up and we add them to the mentor's roster)
+DROP POLICY IF EXISTS "Authenticated can update mentor students list" ON public.profiles;
+CREATE POLICY "Authenticated can update mentor students list" ON public.profiles
+    FOR UPDATE
+    TO authenticated
+    USING (role = 'mentor');
 
 -- ============================================================================
--- STEP 3: Allow team members insert by mentor
+-- PART 4: RLS for public.team_members
 -- ============================================================================
+
+ALTER TABLE public.team_members ENABLE ROW LEVEL SECURITY;
+
+-- Anyone authenticated can read team members
+DROP POLICY IF EXISTS "Anyone can read team members" ON public.team_members;
+CREATE POLICY "Anyone can read team members" ON public.team_members
+    FOR SELECT
+    TO authenticated
+    USING (true);
+
+-- Mentors can insert team members for their own teams
 DROP POLICY IF EXISTS "Mentors can insert team members" ON public.team_members;
 CREATE POLICY "Mentors can insert team members" ON public.team_members
-    FOR INSERT WITH CHECK (
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (
         EXISTS (
-            SELECT 1 FROM public.teams t 
-            WHERE t.id = team_members.team_id 
-            AND t.mentor_id = auth.uid()
+            SELECT 1 FROM public.teams t
+            WHERE t.id = team_members.team_id
+              AND t.mentor_id = auth.uid()
         )
     );
 
--- Students can update their own team_member status (accept/decline)
+-- Mentors can update and delete team members in their own teams
+DROP POLICY IF EXISTS "Mentors can manage their team members" ON public.team_members;
+CREATE POLICY "Mentors can manage their team members" ON public.team_members
+    FOR ALL
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.teams t
+            WHERE t.id = team_members.team_id
+              AND t.mentor_id = auth.uid()
+        )
+    );
+
+-- Students can update their own team membership status (accept or decline)
 DROP POLICY IF EXISTS "Students can update own team membership" ON public.team_members;
 CREATE POLICY "Students can update own team membership" ON public.team_members
-    FOR UPDATE USING (auth.uid() = student_id);
+    FOR UPDATE
+    TO authenticated
+    USING (auth.uid() = student_id);
 
--- Students can delete their own team_member record (decline removes record)
+-- Students can delete their own team membership record (when they decline)
 DROP POLICY IF EXISTS "Students can delete own team membership" ON public.team_members;
 CREATE POLICY "Students can delete own team membership" ON public.team_members
-    FOR DELETE USING (auth.uid() = student_id);
+    FOR DELETE
+    TO authenticated
+    USING (auth.uid() = student_id);
 
 -- ============================================================================
--- STEP 4: Sync trigger — auto-update mentor's students[] on profile insert/update
+-- PART 5: Auto-sync trigger for mentor students[] JSONB column
 -- ============================================================================
+
 CREATE OR REPLACE FUNCTION public.sync_mentor_students_on_student_profile()
 RETURNS TRIGGER AS $$
 DECLARE
   student_display_name TEXT;
-  old_mentor_students JSONB;
-  new_mentor_students JSONB;
+  old_mentor_students  JSONB;
+  new_mentor_students  JSONB;
 BEGIN
   IF NEW.role <> 'student' THEN
     RETURN NEW;
@@ -85,20 +180,20 @@ BEGIN
 
   student_display_name := NEW.full_name;
 
-  -- On mentor change: remove from old mentor
+  -- Remove from OLD mentor when mentor changes
   IF TG_OP = 'UPDATE' AND OLD.mentor_id IS NOT NULL AND 
      COALESCE(OLD.mentor_id::TEXT, '') <> COALESCE(NEW.mentor_id::TEXT, '') THEN
-    
-    SELECT students INTO old_mentor_students 
+
+    SELECT students INTO old_mentor_students
     FROM public.profiles WHERE id = OLD.mentor_id;
-    
+
     IF old_mentor_students IS NOT NULL THEN
       SELECT COALESCE(jsonb_agg(v), '[]'::jsonb)
       INTO old_mentor_students
       FROM jsonb_array_elements_text(old_mentor_students) AS v
       WHERE v <> student_display_name;
-      
-      UPDATE public.profiles 
+
+      UPDATE public.profiles
       SET students = old_mentor_students
       WHERE id = OLD.mentor_id;
     END IF;
@@ -106,17 +201,16 @@ BEGIN
 
   -- Add to new mentor's students array
   IF NEW.mentor_id IS NOT NULL THEN
-    SELECT students INTO new_mentor_students 
+    SELECT students INTO new_mentor_students
     FROM public.profiles WHERE id = NEW.mentor_id;
-    
-    IF new_mentor_students IS NULL THEN
+
+    IF new_mentor_students IS NULL OR jsonb_typeof(new_mentor_students) <> 'array' THEN
       new_mentor_students := '[]'::jsonb;
     END IF;
-    
+
     IF NOT (new_mentor_students @> jsonb_build_array(student_display_name)) THEN
       new_mentor_students := new_mentor_students || jsonb_build_array(student_display_name);
-      
-      UPDATE public.profiles 
+      UPDATE public.profiles
       SET students = new_mentor_students
       WHERE id = NEW.mentor_id;
     END IF;
@@ -133,36 +227,40 @@ CREATE TRIGGER trg_sync_mentor_students
   EXECUTE FUNCTION public.sync_mentor_students_on_student_profile();
 
 -- ============================================================================
--- STEP 5: One-time migration — fix existing students with NULL mentor_id
--- where mentor_name is known and matches a real mentor profile
+-- PART 6: One-time migration — fix existing students with NULL mentor_id
+-- Only assigns when mentor_name matches a real mentor profile (safe).
 -- ============================================================================
+
 DO $$
 DECLARE
-  s RECORD;
-  mentor_record RECORD;
-  mentor_students JSONB;
+  s      RECORD;
+  m_rec  RECORD;
 BEGIN
-  FOR s IN 
-    SELECT id, full_name, mentor_name 
-    FROM public.profiles 
-    WHERE role = 'student' AND mentor_id IS NULL AND mentor_name IS NOT NULL
-  LOOP
-    -- Try to find mentor by name
-    SELECT id, full_name, students INTO mentor_record
+  FOR s IN
+    SELECT id, full_name, mentor_name
     FROM public.profiles
-    WHERE role = 'mentor' AND lower(full_name) = lower(s.mentor_name)
+    WHERE role = 'student' AND mentor_id IS NULL AND mentor_name IS NOT NULL AND mentor_name <> ''
+  LOOP
+    SELECT id, full_name INTO m_rec
+    FROM public.profiles
+    WHERE role = 'mentor' AND lower(trim(full_name)) = lower(trim(s.mentor_name))
     LIMIT 1;
-    
+
     IF FOUND THEN
-      -- Update the student's mentor_id
       UPDATE public.profiles
-      SET mentor_id = mentor_record.id,
-          mentor_name = mentor_record.full_name
+      SET mentor_id = m_rec.id,
+          mentor_name = m_rec.full_name
       WHERE id = s.id;
-      
-      RAISE NOTICE 'Fixed student % → mentor %', s.full_name, mentor_record.full_name;
+
+      RAISE NOTICE 'Fixed: student "%" -> mentor "%" (%)', s.full_name, m_rec.full_name, m_rec.id;
     ELSE
-      RAISE NOTICE 'Could not resolve mentor for student: % (mentor_name: %)', s.full_name, s.mentor_name;
+      RAISE NOTICE 'No mentor match for student "%" with mentor_name="%"', s.full_name, s.mentor_name;
     END IF;
   END LOOP;
 END $$;
+
+-- ============================================================================
+-- Verify results:
+-- SELECT id, full_name, role, mentor_id, mentor_name FROM public.profiles ORDER BY role;
+-- SELECT id, team_id, student_id, status, joined_at FROM public.team_members;
+-- ============================================================================
