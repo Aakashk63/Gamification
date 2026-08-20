@@ -195,85 +195,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         
         if (signupError) throw signupError;
 
-        // New user created — build the profile using SECURITY DEFINER RPCs.
-        // These functions bypass RLS and guarantee the mentor_id is written atomically.
-        // DO NOT use direct .from('profiles').insert() or .upsert() for students.
-        if (data.user && data.user.identities && data.user.identities.length > 0) {
-
-          if (effectiveRole === 'student') {
-            // selectedMentorId is already validated as a non-empty UUID above (before signUp).
-            const avatarUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80';
-
-            const { data: rpcResult, error: rpcError } = await supabase.rpc(
-              'create_student_profile',
-              {
-                p_user_id:     data.user.id,
-                p_full_name:   name.trim(),
-                p_avatar_url:  avatarUrl,
-                p_mentor_id:   selectedMentorId,
-                p_department:  dept.trim() || null,
-                p_college:     collegeName.trim() || null,
-                p_register_no: registerNo.trim() || null
-              }
-            );
-
-            if (rpcError) {
-              // Surface the real error — do NOT silently continue or fallback.
-              console.error('create_student_profile RPC error:', {
-                message: rpcError.message,
-                code:    rpcError.code,
-                details: rpcError.details
-              });
-              setErrorMsg(`Profile creation failed: ${rpcError.message || 'Database error. Contact support.'}`);
-              // Sign out the orphaned auth user so they can retry
-              await supabase.auth.signOut();
-              setLoading(false);
-              return;
-            }
-
-            // Check the function's own success/error result
-            const result = rpcResult as { success: boolean; error?: string; mentor_id?: string; mentor_name?: string };
-            if (result && result.success === false) {
-              console.error('create_student_profile returned failure:', result.error);
-              setErrorMsg(result.error || 'Profile creation failed at the database level.');
-              await supabase.auth.signOut();
-              setLoading(false);
-              return;
-            }
-
-            console.log(
-              `Student profile created. mentor_id=${result?.mentor_id} mentor_name="${result?.mentor_name}"`
-            );
-            // The database trigger automatically updates mentor.students[] — no frontend sync needed.
-
-          } else {
-            // MENTOR signup — use create_mentor_profile RPC
-            const mentorAvatarUrl = 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80';
-            const { data: rpcResult, error: rpcError } = await supabase.rpc(
-              'create_mentor_profile',
-              {
-                p_user_id:    data.user.id,
-                p_full_name:  name.trim(),
-                p_avatar_url: mentorAvatarUrl
-              }
-            );
-
-            if (rpcError) {
-              console.error('create_mentor_profile RPC error:', rpcError.message);
-              setErrorMsg(`Mentor profile creation failed: ${rpcError.message}`);
-              await supabase.auth.signOut();
-              setLoading(false);
-              return;
-            }
-            console.log('Mentor profile created via RPC:', rpcResult);
-          }
-
-        } else {
-          setErrorMsg('An account with this email already exists. Please log in.');
+        // If user is created, the database trigger on auth.users will automatically
+        // create the public.profiles record with the selected mentor in the same transaction.
+        if (!data.user) {
+          setErrorMsg('Signup failed. Please try again.');
           setLoading(false);
           return;
         }
 
+        console.log('User created successfully in auth.users. Database trigger will create public.profiles.');
         setSuccessMsg('Account created successfully!');
         setTimeout(() => {
           onAuthSuccess(data.session);
