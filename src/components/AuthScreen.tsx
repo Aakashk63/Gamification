@@ -39,7 +39,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [mentorName, setMentorName] = useState('');
+  const [selectedMentorId, setSelectedMentorId] = useState('');
+  const [selectedMentor, setSelectedMentor] = useState<ApiMentor | null>(null);
   const [collegeName, setCollegeName] = useState('SNS College of Technology');
   const [dept, setDept] = useState('');
   const [registerNo, setRegisterNo] = useState('');
@@ -52,30 +53,30 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Fetch mentor list using the Supabase RPC function get_mentors()
+  // Fetch mentor list directly from public.profiles table where role = 'mentor'
   useEffect(() => {
     const fetchMentors = async () => {
       setMentorsLoading(true);
       try {
-        // Call the SQL function: select * from public.get_mentors()
-        const { data, error } = await supabase.rpc('get_mentors');
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, role')
+          .eq('role', 'mentor');
 
         if (error) throw error;
 
-        // Map RPC result rows to ApiMentor shape
-        // The get_mentors() function may return: id, full_name, avatar_url, etc.
         setMentorList(
           (data || []).map((p: any) => ({
-            id: p.id || p.user_id || String(Math.random()),
-            name: p.full_name || p.name || 'Unnamed Mentor',
+            id: p.id,
+            name: p.full_name || 'Unnamed Mentor',
             avatar: p.avatar_url || '',
-            role: 'Mentor',
-            department: p.department || ''
+            role: 'mentor',
+            department: ''
           }))
         );
       } catch (err) {
-        console.warn('Could not fetch mentors from Supabase:', err);
-        setMentorList([]); // Empty — no mock fallback
+        console.warn('Could not fetch mentors from public.profiles:', err);
+        setMentorList([]);
       } finally {
         setMentorsLoading(false);
       }
@@ -140,12 +141,27 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         };
 
         if (effectiveRole === 'student') {
-          if (!mentorName.trim() || !dept.trim() || !registerNo.trim()) {
+          if (!selectedMentorId) {
+            setErrorMsg("Please select your mentor before creating your account.");
+            setLoading(false);
+            return;
+          }
+
+          const selectedMentorObj = mentorList.find(m => m.id === selectedMentorId);
+          if (!selectedMentorObj) {
+            setErrorMsg("Selected mentor could not be found. Please select a valid mentor.");
+            setLoading(false);
+            return;
+          }
+
+          if (!dept.trim() || !registerNo.trim()) {
             setErrorMsg('All signup fields are required for Student Registration.');
             setLoading(false);
             return;
           }
-          metadata.mentorName = mentorName.trim();
+
+          metadata.mentorName = selectedMentorObj.name;
+          metadata.mentorId = selectedMentorObj.id;
           metadata.collegeName = collegeName.trim();
           metadata.department = dept.trim();
           metadata.registerNo = registerNo.trim();
@@ -163,6 +179,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
 
         // If signup was successful (new user), upsert profile into public.profiles
         if (data.user && data.user.identities && data.user.identities.length > 0) {
+          if (effectiveRole === 'student' && !selectedMentorId) {
+            setErrorMsg("Please select a mentor before continuing.");
+            setLoading(false);
+            return;
+          }
+
+          const selectedMentorObj = mentorList.find(m => m.id === selectedMentorId);
+
           const { error: profileError } = await supabase
             .from('profiles')
             .upsert({
@@ -172,11 +196,40 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
               department: dept.trim() || null,
               college: collegeName.trim() || null,
               register_no: registerNo.trim() || null,
-              mentor_id: mentorName.trim() || null
+              mentor_id: effectiveRole === 'student' ? selectedMentorId : null,
+              mentor_name: effectiveRole === 'student' ? (selectedMentorObj?.name || null) : null,
+              avatar_url: effectiveRole === 'mentor'
+                ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'
+                : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
             });
 
           if (profileError) {
             console.error('Failed to create profile record:', profileError);
+          }
+
+          // Manually update mentor students array (for double-safety alongside db trigger)
+          if (effectiveRole === 'student' && selectedMentorId) {
+            try {
+              const { data: mentor } = await supabase
+                .from('profiles')
+                .select('students')
+                .eq('id', selectedMentorId)
+                .single();
+
+              if (mentor) {
+                let currentStudents = Array.isArray(mentor.students) ? mentor.students : [];
+                const studentName = name.trim();
+                if (!currentStudents.includes(studentName)) {
+                  currentStudents.push(studentName);
+                  await supabase
+                    .from('profiles')
+                    .update({ students: currentStudents })
+                    .eq('id', selectedMentorId);
+                }
+              }
+            } catch (e) {
+              console.warn("Failed to manually sync mentor students array:", e);
+            }
           }
         } else {
           setErrorMsg('User already exists. Please log in.');
@@ -394,16 +447,21 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                 </select>
               </div>
 
-              {/* Mentor Name — dynamically fetched */}
-              <div className="space-y-1.5">
+              {/* Mentor Selector — dynamically fetched */}
+              <div className="space-y-1.5 sm:col-span-2">
                 <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1">
                   <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Mentor Name</span>
+                  <span>Select Mentor</span>
                   {mentorsLoading && <Loader2 className="w-3 h-3 text-emerald-400 animate-spin ml-1" />}
                 </label>
                 <select
-                  value={mentorName}
-                  onChange={(e) => setMentorName(e.target.value)}
+                  value={selectedMentorId}
+                  onChange={(e) => {
+                    const mentorId = e.target.value;
+                    setSelectedMentorId(mentorId);
+                    const matched = mentorList.find((m) => m.id === mentorId) || null;
+                    setSelectedMentor(matched);
+                  }}
                   required
                   disabled={mentorsLoading}
                   className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/[0.08] text-xs text-white focus:outline-none focus:border-emerald-400/50 transition-colors disabled:opacity-60"
@@ -412,11 +470,25 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                     {mentorsLoading ? 'Loading mentors from DB...' : mentorList.length === 0 ? 'No mentors found' : '-- Select Your Mentor --'}
                   </option>
                   {mentorList.map((m) => (
-                    <option key={m.id} value={m.name}>
+                    <option key={m.id} value={m.id}>
                       {m.name}
                     </option>
                   ))}
                 </select>
+
+                {selectedMentor && (
+                  <div className="mt-2.5 flex items-center gap-3 p-3 rounded-xl bg-slate-950/60 border border-white/[0.06] backdrop-blur-xl shadow-lg">
+                    <img 
+                      src={selectedMentor.avatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'} 
+                      alt={selectedMentor.name}
+                      className="w-10 h-10 rounded-xl object-cover ring-2 ring-emerald-500/20"
+                    />
+                    <div>
+                      <div className="text-xs font-bold text-white">{selectedMentor.name}</div>
+                      <div className="text-[9px] text-emerald-400 font-extrabold uppercase tracking-wider">Selected Mentor</div>
+                    </div>
+                  </div>
+                )}
               </div>
 
             </div>
