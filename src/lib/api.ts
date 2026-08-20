@@ -428,7 +428,8 @@ export async function apiGetTasks(): Promise<ApiTask[]> {
 
   // Fetch today's completions
   let completedTaskIds = new Set<string>();
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const { data: completions, error: completionsError } = await supabase
     .from('daily_task_completions')
     .select('task_id')
@@ -456,7 +457,8 @@ export async function apiCompleteTask(taskId: string, points: number, isTeamTask
   if (!user) throw new Error("Not authenticated");
 
   // 1. Insert daily completion record
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const { error: completionError } = await supabase
     .from('daily_task_completions')
     .insert({ 
@@ -533,26 +535,44 @@ export async function apiGetUnassignedStudents(): Promise<any[]> {
   const { data: students, error: studentsError } = await supabase
     .from('profiles')
     .select('id, full_name, avatar_url, role')
-    .eq('mentor_id', user.id);
+    .eq('mentor_id', user.id)
+    .eq('role', 'student');
 
-  if (studentsError) throw studentsError;
-
-  // Get all team_members for this mentor's teams
-  const { data: teams } = await supabase.from('teams').select('id').eq('mentor_id', user.id);
-  const teamIds = (teams || []).map(t => t.id);
+  if (studentsError) {
+    console.error("apiGetUnassignedStudents: Error fetching profiles", studentsError);
+    throw studentsError;
+  }
   
-  let assignedStudentIds = new Set<string>();
-  if (teamIds.length > 0) {
-    const { data: members } = await supabase
-      .from('team_members')
-      .select('student_id')
-      .in('team_id', teamIds);
-    if (members) {
-      assignedStudentIds = new Set(members.map(m => m.student_id));
-    }
+  if (!students || students.length === 0) return [];
+
+  const studentIds = students.map(s => s.id);
+  
+  // Find which of these students are already in ANY team
+  const { data: members, error: membersError } = await supabase
+    .from('team_members')
+    .select('student_id')
+    .in('student_id', studentIds);
+
+  if (membersError) {
+    console.error("apiGetUnassignedStudents: Error fetching team_members", membersError);
+    throw membersError;
   }
 
-  return (students || []).filter(s => !assignedStudentIds.has(s.id));
+  const assignedStudentIds = new Set((members || []).map(m => m.student_id));
+
+  const availableStudents = students.filter(s => !assignedStudentIds.has(s.id));
+  
+  if (import.meta.env.DEV) {
+    console.log({
+      currentUserId: user.id,
+      currentMentorProfileId: user.id,
+      currentMentorName: user.user_metadata?.name || 'Unknown Mentor',
+      studentsRegisteredUnderMentor: students.length,
+      availableUnassignedStudents: availableStudents
+    });
+  }
+  
+  return availableStudents;
 }
 
 export async function apiAddStudentToTeam(teamId: string, studentId: string): Promise<void> {
@@ -564,14 +584,28 @@ export async function apiAddStudentToTeam(teamId: string, studentId: string): Pr
     
   if (countError) throw countError;
   if (count && count >= 4) {
-    throw new Error("Team is full. A team can have a maximum of 4 students.");
+    throw new Error("Team is full. Maximum 4 students allowed.");
+  }
+
+  // Duplicate check
+  const { count: studentTeamCount, error: studentCountError } = await supabase
+    .from('team_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('student_id', studentId);
+    
+  if (studentCountError) throw studentCountError;
+  if (studentTeamCount && studentTeamCount > 0) {
+    throw new Error("Student is already assigned to a team.");
   }
 
   const { error } = await supabase
     .from('team_members')
     .insert({ team_id: teamId, student_id: studentId });
 
-  if (error) throw error;
+  if (error) {
+    if (error.code === '23505') throw new Error("Student is already assigned to a team.");
+    throw error;
+  }
 }
 
 export async function apiGetMentorTeamPerformance(): Promise<any[]> {

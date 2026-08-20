@@ -27,9 +27,10 @@ import {
   Trash2
 } from 'lucide-react';
 import { useProfile } from '../contexts/ProfileContext';
+import { AvatarImage } from './ui/AvatarImage';
 
 export const AnnouncementPage: React.FC = () => {
-  const { profile } = useProfile();
+  const { profile, loading: profileLoading } = useProfile();
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -348,10 +349,11 @@ export const AnnouncementPage: React.FC = () => {
           {/* Profile Details Container */}
           <div className="px-5 pb-5 relative flex flex-col items-center text-center">
             <div className="w-20 h-20 rounded-full border-4 border-[#111622] overflow-hidden -mt-10 bg-slate-800 z-10 shadow-lg">
-              <img
+              <AvatarImage
                 src={displayProfile.avatar}
                 alt={displayProfile.name}
                 className="w-full h-full object-cover"
+                isLoadingData={profileLoading}
               />
             </div>
 
@@ -399,10 +401,11 @@ export const AnnouncementPage: React.FC = () => {
         {/* START A POST BOX */}
         <div className="p-4 rounded-3xl bg-[#111622]/90 border border-white/[0.08] shadow-xl space-y-3.5">
           <div className="flex items-center gap-3">
-            <img
+            <AvatarImage
               src={displayProfile.avatar}
               alt="Aakash K"
               className="w-10 h-10 rounded-full object-cover ring-2 ring-emerald-500/20"
+              isLoadingData={profileLoading}
             />
             <button
               onClick={() => {
@@ -598,10 +601,11 @@ export const AnnouncementPage: React.FC = () => {
                     <div className="pt-3 border-t border-white/[0.04] space-y-4">
                       {/* Add Comment input */}
                       <div className="flex gap-2">
-                        <img
+                        <AvatarImage
                           src={displayProfile.avatar}
                           alt="Avatar"
                           className="w-8 h-8 rounded-full object-cover ring-1 ring-white/10"
+                          isLoadingData={profileLoading}
                         />
                         <div className="flex-1 flex gap-2">
                           <input
@@ -699,10 +703,11 @@ export const AnnouncementPage: React.FC = () => {
 
             {/* Author details */}
             <div className="flex items-center gap-3">
-              <img
+              <AvatarImage
                 src={displayProfile.avatar}
                 alt="Avatar"
                 className="w-10 h-10 rounded-full object-cover"
+                isLoadingData={profileLoading}
               />
               <div>
                 <span className="text-xs font-bold text-white block">{displayProfile.name}</span>

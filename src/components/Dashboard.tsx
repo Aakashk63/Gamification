@@ -10,6 +10,7 @@ import { INITIAL_TEAMS } from '../data/mockData';
 import { supabase } from '../lib/supabase';
 import { apiGetDashboardStats, type ApiDashboardStats } from '../lib/api';
 import { useProfile } from '../contexts/ProfileContext';
+import { AvatarImage } from './ui/AvatarImage';
 import {
   Flame,
   GraduationCap,
@@ -25,17 +26,20 @@ import {
   Sparkles,
   HeartHandshake,
   Users,
+  User,
   Activity,
   Zap,
   Pencil
 } from 'lucide-react';
 
-const NAV_ITEMS = [
+const getNavItems = (role?: string) => [
   { id: 'leaderboard', path: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { id: 'announcement', path: '/announcement', label: 'Announcement', icon: Megaphone },
-  { id: 'task', path: '/task', label: 'Task', icon: CheckSquare },
+  ...(role === 'mentor'
+    ? [{ id: 'team', path: '/team', label: 'Team', icon: Users }]
+    : [{ id: 'task', path: '/task', label: 'Task', icon: CheckSquare }]),
   { id: 'redeem', path: '/redeem', label: 'Redeem Point', icon: Coins },
-  { id: 'profile', path: '/profile', label: 'Profile', icon: Users },
+  { id: 'profile', path: '/profile', label: 'Profile', icon: User },
   { id: 'feedback', path: '/feedback', label: 'Feedback', icon: MessageSquare },
 ];
 
@@ -43,12 +47,13 @@ export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Derive active tab from current URL path
-  const activeTab = NAV_ITEMS.find(n => n.path === location.pathname)?.id || 'leaderboard';
-
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const { profile: globalProfile, loading: profileLoading } = useProfile();
+  
+  const navItems = getNavItems(globalProfile?.role);
+  // Derive active tab from current URL path
+  const activeTab = navItems.find(n => n.path === location.pathname)?.id || 'leaderboard';
   
   // Format global profile into the structure Dashboard expects
   const profile = globalProfile ? {
@@ -153,7 +158,7 @@ export const Dashboard: React.FC = () => {
                   {profileLoading || !profile ? (
                     <div className="w-full h-full bg-slate-800 rounded-[6px] animate-pulse"></div>
                   ) : (
-                    <img
+                    <AvatarImage
                       src={profile.avatar}
                       alt="Profile"
                       className="w-full h-full object-cover rounded-[6px]"
@@ -189,7 +194,7 @@ export const Dashboard: React.FC = () => {
                         <div className="relative">
                           <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center font-bold text-lg overflow-hidden border-2 border-emerald-500/50 shadow-sm">
                             {(profile?.avatar?.includes('http') || profile?.avatar?.includes('data:image')) ? (
-                              <img src={profile.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                              <AvatarImage src={profile.avatar} alt="Avatar" className="w-full h-full object-cover" />
                             ) : (
                               profile?.name?.charAt(0) || 'U'
                             )}
@@ -256,7 +261,7 @@ export const Dashboard: React.FC = () => {
             </div>
 
             <nav className="space-y-2">
-              {NAV_ITEMS.map((item) => {
+              {navItems.map((item) => {
                 const IconComponent = item.icon;
                 const isActive = activeTab === item.id;
                 return (
@@ -300,7 +305,7 @@ export const Dashboard: React.FC = () => {
 
         {/* Mobile Bottom Navigation Bar */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0c101a]/95 backdrop-blur-xl border-t border-white/[0.08] px-2 py-1.5 flex justify-around items-center">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const IconComponent = item.icon;
             const isActive = activeTab === item.id;
             return (
@@ -376,15 +381,14 @@ export const Dashboard: React.FC = () => {
                     </div>
                   </div>
                 )}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 xl:gap-8 items-start">
-                  <div className="lg:col-span-1 w-full">
+                <div className="grid grid-cols-1 gap-6 items-start">
+                  <div className="w-full">
                     <Leaderboard initialLeaderboard={defaultLeaderboard} />
-                  </div>
-                  <div className="lg:col-span-1 w-full">
-                    <MentorVSBattle />
                   </div>
                 </div>
               </div>
+            ) : activeTab === 'team' ? (
+              <MentorVSBattle />
             ) : activeTab === 'announcement' ? (
               <AnnouncementPage />
             ) : activeTab === 'profile' ? (
@@ -400,10 +404,10 @@ export const Dashboard: React.FC = () => {
                 </div>
                 <div className="space-y-2">
                   <h2 className="text-2xl font-black font-heading text-white tracking-wide uppercase">
-                    {NAV_ITEMS.find((n) => n.id === activeTab)?.label} Section
+                    {navItems.find((n) => n.id === activeTab)?.label} Section
                   </h2>
                   <p className="text-slate-400 text-sm max-w-md mx-auto">
-                    Welcome to the {NAV_ITEMS.find((n) => n.id === activeTab)?.label} board. Real-time notifications and updates from SNS Institution will render here.
+                    Welcome to the {navItems.find((n) => n.id === activeTab)?.label} board. Real-time notifications and updates from SNS Institution will render here.
                   </p>
                 </div>
                 <div className="p-5 rounded-2xl bg-[#111622]/90 border border-white/[0.08] max-w-md mx-auto flex items-center gap-3 text-left">
@@ -411,7 +415,7 @@ export const Dashboard: React.FC = () => {
                   <div>
                     <h4 className="text-xs font-bold text-white uppercase tracking-wider">Upcoming Release</h4>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      Integrations for {NAV_ITEMS.find((n) => n.id === activeTab)?.label} dashboard are loading.
+                      Integrations for {navItems.find((n) => n.id === activeTab)?.label} dashboard are loading.
                     </p>
                   </div>
                 </div>

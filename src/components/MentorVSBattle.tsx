@@ -8,6 +8,7 @@ import {
   apiGetMentorTeamPerformance 
 } from '../lib/api';
 import { useProfile } from '../contexts/ProfileContext';
+import { AvatarImage } from './ui/AvatarImage';
 
 export const MentorVSBattle: React.FC = () => {
   const { profile } = useProfile();
@@ -85,7 +86,7 @@ export const MentorVSBattle: React.FC = () => {
       {/* Header Selector Box (Kept visual style) */}
       <div className="p-4 rounded-3xl bg-[#111622]/90 border border-white/[0.08] backdrop-blur-xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <img
+          <AvatarImage
             src={profile.avatar_url || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'}
             alt={profile.full_name}
             className="w-12 h-12 rounded-2xl object-cover ring-2 ring-emerald-500/40"
@@ -153,7 +154,7 @@ export const MentorVSBattle: React.FC = () => {
                 <div className="space-y-2 mb-4">
                   {(team.team_members || []).map((m: any) => (
                     <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg bg-slate-900/50 border border-white/[0.02]">
-                      <img src={m.profiles?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'} alt="Avatar" className="w-6 h-6 rounded-full object-cover" />
+                      <AvatarImage src={m.profiles?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'} alt="Avatar" className="w-6 h-6 rounded-full object-cover" />
                       <span className="text-sm font-semibold text-slate-200">{m.profiles?.full_name}</span>
                     </div>
                   ))}
@@ -183,7 +184,7 @@ export const MentorVSBattle: React.FC = () => {
                   </div>
                 ) : (
                   <div className="text-center p-2 rounded-lg bg-slate-900/50 border border-white/[0.02] text-xs font-bold text-slate-500 uppercase">
-                    Team Full
+                    Team Full — 4 / 4
                   </div>
                 )}
               </div>
@@ -223,7 +224,7 @@ export const MentorVSBattle: React.FC = () => {
                 {tp.members.map((m: any) => (
                   <div key={m.id} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-white/[0.04]">
                     <div className="flex items-center gap-3">
-                      <img src={m.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'} alt="Avatar" className="w-8 h-8 rounded-full object-cover ring-1 ring-white/10" />
+                      <AvatarImage src={m.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'} alt="Avatar" className="w-8 h-8 rounded-full object-cover ring-1 ring-white/10" />
                       <span className="text-sm font-bold text-slate-200">{m.name}</span>
                     </div>
                     <div className="flex items-center gap-3">

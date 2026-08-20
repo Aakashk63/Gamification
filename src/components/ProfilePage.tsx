@@ -4,6 +4,7 @@ import { Share2, CheckCircle, Save, Loader2, Link2, Pencil } from 'lucide-react'
 import { useNavigate } from 'react-router-dom';
 import { STORE_CATALOG } from '../data/storeCatalog';
 import { useProfile } from '../contexts/ProfileContext';
+import { AvatarImage } from './ui/AvatarImage';
 
 export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
@@ -159,7 +160,7 @@ export const ProfilePage: React.FC = () => {
               </div>
               <div className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-emerald-500/30 bg-transparent flex shrink-0 group">
                 {(avatarBase64 || profile.avatar_url) ? (
-                  <img src={avatarBase64 || profile.avatar_url} alt="Profile" className="w-full h-full object-contain" />
+                  <AvatarImage src={avatarBase64 || profile.avatar_url} alt="Profile" className="w-full h-full object-contain" />
                 ) : (
                   <span className="m-auto text-slate-500 text-xs">{profile.full_name?.charAt(0) || 'U'}</span>
                 )}
