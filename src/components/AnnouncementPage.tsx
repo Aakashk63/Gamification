@@ -26,8 +26,10 @@ import {
   Info,
   Trash2
 } from 'lucide-react';
+import { useProfile } from '../contexts/ProfileContext';
 
 export const AnnouncementPage: React.FC = () => {
+  const { profile } = useProfile();
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -103,6 +105,13 @@ export const AnnouncementPage: React.FC = () => {
       }
     });
   }, []);
+
+  const displayProfile = {
+    ...studentProfile,
+    name: profile?.full_name || studentProfile.name,
+    avatar: profile?.avatar_url || studentProfile.avatar,
+    tagline: profile ? `${profile.full_name} | ${profile.role === 'mentor' ? 'Authorized Mentor' : 'Student'}` : studentProfile.tagline
+  };
 
   // Trigger local file selection input
   const triggerFileSelect = (type: 'image' | 'video') => {
@@ -238,8 +247,8 @@ export const AnnouncementPage: React.FC = () => {
     const newComment = {
       id: `comment-${Date.now()}`,
       user_id: currentUserId || '',
-      authorName: studentProfile.name,
-      authorAvatar: studentProfile.avatar,
+      authorName: displayProfile.name,
+      authorAvatar: displayProfile.avatar,
       content: text,
       createdAt: 'Just now'
     };
@@ -259,7 +268,7 @@ export const AnnouncementPage: React.FC = () => {
     setCommentInput({ ...commentInput, [postId]: '' });
 
     try {
-      await apiAddComment(postId, text, studentProfile);
+      await apiAddComment(postId, text, displayProfile);
       fetchPosts();
     } catch (err) {
       console.error('Failed to add comment to DB:', err);
@@ -330,7 +339,7 @@ export const AnnouncementPage: React.FC = () => {
           {/* Profile Banner */}
           <div className="h-24 bg-gradient-to-r from-emerald-600 to-teal-800 relative">
             <img
-              src={studentProfile.banner}
+              src={displayProfile.banner}
               alt="Banner"
               className="w-full h-full object-cover opacity-40"
             />
@@ -340,28 +349,28 @@ export const AnnouncementPage: React.FC = () => {
           <div className="px-5 pb-5 relative flex flex-col items-center text-center">
             <div className="w-20 h-20 rounded-full border-4 border-[#111622] overflow-hidden -mt-10 bg-slate-800 z-10 shadow-lg">
               <img
-                src={studentProfile.avatar}
-                alt={studentProfile.name}
+                src={displayProfile.avatar}
+                alt={displayProfile.name}
                 className="w-full h-full object-cover"
               />
             </div>
 
             <h3 className="mt-3 text-lg font-black font-heading text-white tracking-wide flex items-center gap-1">
-              {studentProfile.name}
+              {displayProfile.name}
               <CheckCircle className="w-4 h-4 text-emerald-400 fill-emerald-400/20" />
             </h3>
             <p className="text-xs text-slate-300 mt-1 max-w-xs leading-relaxed">
-              {studentProfile.tagline}
+              {displayProfile.tagline}
             </p>
 
             <div className="w-full border-t border-white/[0.06] mt-4 pt-4 space-y-2.5 text-left text-xs text-slate-400">
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-slate-500 shrink-0" />
-                <span>{studentProfile.location}</span>
+                <span>{displayProfile.location}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Building className="w-4 h-4 text-slate-500 shrink-0" />
-                <span className="font-semibold text-emerald-400">{studentProfile.institution}</span>
+                <span className="font-semibold text-emerald-400">{displayProfile.institution}</span>
               </div>
             </div>
           </div>
@@ -391,7 +400,7 @@ export const AnnouncementPage: React.FC = () => {
         <div className="p-4 rounded-3xl bg-[#111622]/90 border border-white/[0.08] shadow-xl space-y-3.5">
           <div className="flex items-center gap-3">
             <img
-              src={studentProfile.avatar}
+              src={displayProfile.avatar}
               alt="Aakash K"
               className="w-10 h-10 rounded-full object-cover ring-2 ring-emerald-500/20"
             />
@@ -590,7 +599,7 @@ export const AnnouncementPage: React.FC = () => {
                       {/* Add Comment input */}
                       <div className="flex gap-2">
                         <img
-                          src={studentProfile.avatar}
+                          src={displayProfile.avatar}
                           alt="Avatar"
                           className="w-8 h-8 rounded-full object-cover ring-1 ring-white/10"
                         />
@@ -691,12 +700,12 @@ export const AnnouncementPage: React.FC = () => {
             {/* Author details */}
             <div className="flex items-center gap-3">
               <img
-                src={studentProfile.avatar}
+                src={displayProfile.avatar}
                 alt="Avatar"
                 className="w-10 h-10 rounded-full object-cover"
               />
               <div>
-                <span className="text-xs font-bold text-white block">{studentProfile.name}</span>
+                <span className="text-xs font-bold text-white block">{displayProfile.name}</span>
                 <span className="text-[10px] text-emerald-400 font-semibold">
                   Posting to SNS Institution
                 </span>
