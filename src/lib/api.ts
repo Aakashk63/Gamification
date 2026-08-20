@@ -426,12 +426,14 @@ export async function apiGetTasks(): Promise<ApiTask[]> {
     tasks.unshift(defaultLeetCodeTask);
   }
 
-  // Fetch user completions gracefully
+  // Fetch today's completions
   let completedTaskIds = new Set<string>();
+  const today = new Date().toISOString().split('T')[0];
   const { data: completions, error: completionsError } = await supabase
-    .from('task_completions')
+    .from('daily_task_completions')
     .select('task_id')
-    .eq('user_id', user.id);
+    .eq('student_id', user.id)
+    .eq('task_date', today);
 
   if (!completionsError && completions) {
     completedTaskIds = new Set(completions.map(c => c.task_id));
@@ -439,7 +441,7 @@ export async function apiGetTasks(): Promise<ApiTask[]> {
   
   // Fallback to localStorage if DB table is missing
   try {
-    const localCompletions = JSON.parse(localStorage.getItem('campusxp_completed_tasks') || '[]');
+    const localCompletions = JSON.parse(localStorage.getItem(`campusxp_completed_tasks_${today}`) || '[]');
     localCompletions.forEach((id: string) => completedTaskIds.add(id));
   } catch(e) {}
 
@@ -453,21 +455,27 @@ export async function apiCompleteTask(taskId: string, points: number, isTeamTask
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  // 1. Insert completion record
+  // 1. Insert daily completion record
+  const today = new Date().toISOString().split('T')[0];
   const { error: completionError } = await supabase
-    .from('task_completions')
-    .insert({ user_id: user.id, task_id: taskId });
+    .from('daily_task_completions')
+    .insert({ 
+      student_id: user.id, 
+      task_id: taskId,
+      task_date: today,
+      points_earned: points
+    });
 
   if (completionError) {
     if (completionError.code === '23505') {
-      throw new Error("Task already completed");
+      throw new Error("Task already completed today");
     }
-    console.warn("Could not save task completion to DB (table might be missing), awarding points anyway.", completionError);
+    console.warn("Could not save daily task completion to DB (table might be missing), awarding points anyway.", completionError);
     // Fallback to local storage
     try {
-      const localCompletions = JSON.parse(localStorage.getItem('campusxp_completed_tasks') || '[]');
+      const localCompletions = JSON.parse(localStorage.getItem(`campusxp_completed_tasks_${today}`) || '[]');
       if (!localCompletions.includes(taskId)) {
-        localStorage.setItem('campusxp_completed_tasks', JSON.stringify([...localCompletions, taskId]));
+        localStorage.setItem(`campusxp_completed_tasks_${today}`, JSON.stringify([...localCompletions, taskId]));
       }
     } catch(e) {}
   }
@@ -484,4 +492,133 @@ export async function apiCompleteTask(taskId: string, points: number, isTeamTask
   }
 
   await supabase.from('profiles').update(updates).eq('id', user.id);
+}
+
+// ============================================================================
+// MENTOR TEAMS APIS
+// ============================================================================
+
+export async function apiGetMentorTeams(): Promise<any[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { data, error } = await supabase
+    .from('teams')
+    .select(`
+      *,
+      team_members (*, profiles (full_name, avatar_url, role))
+    `)
+    .eq('mentor_id', user.id);
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function apiCreateTeam(name: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from('teams')
+    .insert({ mentor_id: user.id, name });
+
+  if (error) throw error;
+}
+
+export async function apiGetUnassignedStudents(): Promise<any[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  // Get students assigned to this mentor
+  const { data: students, error: studentsError } = await supabase
+    .from('profiles')
+    .select('id, full_name, avatar_url, role')
+    .eq('mentor_id', user.id);
+
+  if (studentsError) throw studentsError;
+
+  // Get all team_members for this mentor's teams
+  const { data: teams } = await supabase.from('teams').select('id').eq('mentor_id', user.id);
+  const teamIds = (teams || []).map(t => t.id);
+  
+  let assignedStudentIds = new Set<string>();
+  if (teamIds.length > 0) {
+    const { data: members } = await supabase
+      .from('team_members')
+      .select('student_id')
+      .in('team_id', teamIds);
+    if (members) {
+      assignedStudentIds = new Set(members.map(m => m.student_id));
+    }
+  }
+
+  return (students || []).filter(s => !assignedStudentIds.has(s.id));
+}
+
+export async function apiAddStudentToTeam(teamId: string, studentId: string): Promise<void> {
+  // Check limit
+  const { count, error: countError } = await supabase
+    .from('team_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('team_id', teamId);
+    
+  if (countError) throw countError;
+  if (count && count >= 4) {
+    throw new Error("Team is full. A team can have a maximum of 4 students.");
+  }
+
+  const { error } = await supabase
+    .from('team_members')
+    .insert({ team_id: teamId, student_id: studentId });
+
+  if (error) throw error;
+}
+
+export async function apiGetMentorTeamPerformance(): Promise<any[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  // Get teams with members
+  const teams = await apiGetMentorTeams();
+  if (!teams || teams.length === 0) return [];
+
+  // Get today's completions for all students
+  const today = new Date().toISOString().split('T')[0];
+  const { data: completions } = await supabase
+    .from('daily_task_completions')
+    .select('student_id, points_earned')
+    .eq('task_date', today);
+
+  const completionsMap = new Map();
+  if (completions) {
+    completions.forEach(c => {
+      completionsMap.set(c.student_id, c.points_earned);
+    });
+  }
+
+  // Format response
+  return teams.map(team => {
+    const members = (team.team_members || []).map((m: any) => {
+      const isCompleted = completionsMap.has(m.student_id);
+      return {
+        id: m.student_id,
+        name: m.profiles?.full_name || 'Unknown',
+        avatar: m.profiles?.avatar_url,
+        completed: isCompleted,
+        points: isCompleted ? completionsMap.get(m.student_id) : 0
+      };
+    });
+
+    const completedCount = members.filter((m: any) => m.completed).length;
+    const totalPoints = members.reduce((sum: number, m: any) => sum + m.points, 0);
+
+    return {
+      id: team.id,
+      name: team.name,
+      memberCount: members.length,
+      members,
+      completedCount,
+      totalPoints
+    };
+  });
 }

@@ -1,187 +1,256 @@
-import React, { useState } from 'react';
-import { MOCK_MENTORS } from '../data/mockData';
-import { Users, Trophy, Swords, Star } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Users, Trophy, Plus, CheckCircle, XCircle, AlertCircle, ShieldAlert } from 'lucide-react';
+import { 
+  apiGetMentorTeams, 
+  apiCreateTeam, 
+  apiGetUnassignedStudents, 
+  apiAddStudentToTeam, 
+  apiGetMentorTeamPerformance 
+} from '../lib/api';
+import { useProfile } from '../contexts/ProfileContext';
 
 export const MentorVSBattle: React.FC = () => {
-  const [selectedMentorId, setSelectedMentorId] = useState<string>(MOCK_MENTORS[0].id);
+  const { profile } = useProfile();
+  const [teams, setTeams] = useState<any[]>([]);
+  const [unassignedStudents, setUnassignedStudents] = useState<any[]>([]);
+  const [teamPerformance, setTeamPerformance] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [newTeamName, setNewTeamName] = useState('');
+  const [error, setError] = useState('');
 
-  const selectedMentor = MOCK_MENTORS.find((m) => m.id === selectedMentorId) || MOCK_MENTORS[0];
-  const { team1, team2 } = selectedMentor;
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const [teamsData, studentsData, performanceData] = await Promise.all([
+        apiGetMentorTeams(),
+        apiGetUnassignedStudents(),
+        apiGetMentorTeamPerformance()
+      ]);
+      setTeams(teamsData);
+      setUnassignedStudents(studentsData);
+      setTeamPerformance(performanceData);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load mentor data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Combine and sort members of both teams by points for comparison table
-  const allStudents = [
-    ...team1.members.map((m) => ({ ...m, teamName: team1.name, teamAvatar: team1.avatar })),
-    ...team2.members.map((m) => ({ ...m, teamName: team2.name, teamAvatar: team2.avatar })),
-  ].sort((a, b) => (b.points || 0) - (a.points || 0));
+  useEffect(() => {
+    if (profile && profile.role === 'mentor') {
+      loadData();
+    } else {
+      setLoading(false);
+    }
+  }, [profile]);
+
+  const handleCreateTeam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTeamName.trim()) return;
+    try {
+      await apiCreateTeam(newTeamName);
+      setNewTeamName('');
+      loadData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to create team');
+    }
+  };
+
+  const handleAssignStudent = async (teamId: string, studentId: string) => {
+    try {
+      await apiAddStudentToTeam(teamId, studentId);
+      loadData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to assign student');
+    }
+  };
+
+  if (!profile || profile.role !== 'mentor') {
+    return (
+      <div className="p-8 text-center text-slate-400">
+        <ShieldAlert className="w-12 h-12 mx-auto mb-4 text-emerald-500/50" />
+        <p>This portal is restricted to authorized Mentors only.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return <div className="p-8 text-center text-slate-400">Loading Mentor Portal...</div>;
+  }
 
   return (
-    <div className="w-full space-y-4">
-      {/* Header Selector Box */}
+    <div className="w-full space-y-6">
+      {/* Header Selector Box (Kept visual style) */}
       <div className="p-4 rounded-3xl bg-[#111622]/90 border border-white/[0.08] backdrop-blur-xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* Mentor Info */}
         <div className="flex items-center gap-3">
           <img
-            src={selectedMentor.avatar}
-            alt={selectedMentor.name}
+            src={profile.avatar_url || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'}
+            alt={profile.full_name}
             className="w-12 h-12 rounded-2xl object-cover ring-2 ring-emerald-500/40"
           />
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                Mentor Challenge
-              </span>
-              <span className="text-[10px] text-slate-400 font-semibold">
-                {selectedMentor.department}
+                Mentor Portal
               </span>
             </div>
-            <h3 className="text-base font-black font-heading text-white">{selectedMentor.name}</h3>
+            <h3 className="text-base font-black font-heading text-white">{profile.full_name}</h3>
           </div>
         </div>
+      </div>
 
-        {/* Dropdown Selector */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-wide hidden lg:inline">
-            Select Mentor:
-          </span>
-          <select
-            value={selectedMentorId}
-            onChange={(e) => setSelectedMentorId(e.target.value)}
-            className="px-3 py-1.5 rounded-xl bg-slate-900 border border-white/[0.08] text-xs font-semibold text-white focus:outline-none focus:border-emerald-400/50 cursor-pointer transition-colors"
-          >
-            {MOCK_MENTORS.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
+      {error && (
+        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2">
+          <AlertCircle className="w-4 h-4" />
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Column: Team Management */}
+        <div className="space-y-6">
+          {/* Create Team Form */}
+          <div className="p-5 rounded-3xl bg-[#10141f]/80 border border-white/[0.06] shadow-xl backdrop-blur-md">
+            <h4 className="text-sm font-black font-heading text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+              <Users className="w-4 h-4 text-emerald-400" />
+              Team Management
+            </h4>
+            <form onSubmit={handleCreateTeam} className="flex gap-2">
+              <input
+                type="text"
+                placeholder="New Team Name..."
+                value={newTeamName}
+                onChange={(e) => setNewTeamName(e.target.value)}
+                className="flex-1 px-4 py-2 rounded-xl bg-slate-900 border border-white/[0.08] text-sm text-white focus:outline-none focus:border-emerald-500/50"
+              />
+              <button
+                type="submit"
+                disabled={!newTeamName.trim()}
+                className="px-4 py-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 font-bold text-sm disabled:opacity-50 transition-colors flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" /> Create
+              </button>
+            </form>
+          </div>
+
+          {/* Teams and Unassigned Students */}
+          <div className="space-y-4">
+            {teams.map(team => (
+              <div key={team.id} className="p-5 rounded-3xl bg-[#111622]/90 border border-white/[0.08] shadow-xl">
+                <div className="flex justify-between items-center mb-3">
+                  <h5 className="font-bold text-white uppercase tracking-wide">{team.name}</h5>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    (team.team_members?.length || 0) >= 4 
+                      ? 'bg-red-500/10 text-red-400 border-red-500/20' 
+                      : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                  }`}>
+                    {team.team_members?.length || 0} / 4 Members
+                  </span>
+                </div>
+                
+                <div className="space-y-2 mb-4">
+                  {(team.team_members || []).map((m: any) => (
+                    <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg bg-slate-900/50 border border-white/[0.02]">
+                      <img src={m.profiles?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'} alt="Avatar" className="w-6 h-6 rounded-full object-cover" />
+                      <span className="text-sm font-semibold text-slate-200">{m.profiles?.full_name}</span>
+                    </div>
+                  ))}
+                  {(!team.team_members || team.team_members.length === 0) && (
+                    <div className="text-xs text-slate-500 italic">No members yet</div>
+                  )}
+                </div>
+
+                {/* Add Student Dropdown (Only if < 4) */}
+                {(team.team_members?.length || 0) < 4 ? (
+                  <div className="flex gap-2">
+                    <select 
+                      className="flex-1 px-3 py-1.5 rounded-lg bg-slate-900 border border-white/[0.08] text-xs text-slate-300 focus:outline-none focus:border-emerald-500/50"
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          handleAssignStudent(team.id, e.target.value);
+                          e.target.value = ""; // reset
+                        }
+                      }}
+                      defaultValue=""
+                    >
+                      <option value="" disabled>+ Add Unassigned Student...</option>
+                      {unassignedStudents.map(s => (
+                        <option key={s.id} value={s.id}>{s.full_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="text-center p-2 rounded-lg bg-slate-900/50 border border-white/[0.02] text-xs font-bold text-slate-500 uppercase">
+                    Team Full
+                  </div>
+                )}
+              </div>
             ))}
-          </select>
-        </div>
-      </div>
-
-      {/* VS Battle Arena Section */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-[#131826]/90 via-[#10141f]/95 to-[#0b0f19] border border-white/[0.08] p-5 shadow-xl backdrop-blur-xl">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-emerald-500/5 blur-3xl pointer-events-none rounded-full" />
-
-        <div className="relative flex items-stretch justify-between gap-4 sm:gap-6 max-w-2xl mx-auto py-2">
-          {/* Team 1 Side (Left) */}
-          <div className="flex-1 flex flex-col items-center text-center p-4 rounded-2xl bg-slate-900/50 border border-white/[0.04]">
-            <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-3xl shadow">
-              {team1.avatar}
-            </div>
-            <h4 className="mt-2 text-xs sm:text-sm font-black font-heading text-white tracking-wider uppercase">
-              {team1.name}
-            </h4>
-            <span className="text-[10px] font-bold text-emerald-400 mt-1 uppercase tracking-widest">
-              Team A
-            </span>
-          </div>
-
-          {/* VS Divider in Center */}
-          <div className="flex flex-col items-center justify-center px-4">
-            <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/5">
-              <Swords className="w-5 h-5 text-emerald-400 animate-pulse" />
-            </div>
-            <span className="text-[10px] font-black tracking-widest text-slate-500 mt-1">VS</span>
-          </div>
-
-          {/* Team 2 Side (Right) */}
-          <div className="flex-1 flex flex-col items-center text-center p-4 rounded-2xl bg-slate-900/50 border border-white/[0.04]">
-            <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 flex items-center justify-center text-3xl shadow">
-              {team2.avatar}
-            </div>
-            <h4 className="mt-2 text-xs sm:text-sm font-black font-heading text-white tracking-wider uppercase">
-              {team2.name}
-            </h4>
-            <span className="text-[10px] font-bold text-purple-400 mt-1 uppercase tracking-widest">
-              Team B
-            </span>
           </div>
         </div>
-      </div>
 
-      {/* Points Table both Team 1 & Team 2 */}
-      <div className="rounded-3xl bg-[#10141f]/80 border border-white/[0.06] p-4.5 shadow-xl backdrop-blur-md space-y-3">
-        {/* Table Title */}
-        <div className="flex items-center justify-between pb-1">
-          <div className="flex items-center gap-2">
+        {/* Right Column: Daily Task Performance */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-2">
             <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               <Trophy className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-xs sm:text-sm font-black font-heading text-white uppercase tracking-wider">
-                Student Points Comparison
+              <h4 className="text-sm font-black font-heading text-white uppercase tracking-wider">
+                Daily Task Monitor
               </h4>
-              <p className="text-[10px] text-slate-400">
-                Performance battle between both team members
-              </p>
+              <p className="text-[10px] text-slate-400">Today's Team Progress</p>
             </div>
           </div>
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-400">
-            <Users className="w-3 h-3" />
-            {allStudents.length} Students
-          </span>
-        </div>
 
-        {/* Student Scoreboard List */}
-        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-          {allStudents.map((student, idx) => (
-            <div
-              key={student.id}
-              className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-white/[0.04] hover:border-emerald-500/20 transition-all duration-150"
-            >
-              {/* Student Identity */}
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                {/* Ranking Index */}
-                <span className="w-5 text-[11px] font-bold text-slate-500 text-center font-mono shrink-0">
-                  {idx + 1}
-                </span>
-
-                <div className="relative">
-                  <img
-                    src={student.avatar}
-                    alt={student.name}
-                    className="w-8 h-8 rounded-full object-cover ring-1 ring-white/10"
-                  />
-                  {idx === 0 && (
-                    <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 rounded-full p-0.5 shadow">
-                      <Star className="w-2.5 h-2.5 fill-current" />
-                    </span>
-                  )}
+          {teamPerformance.map(tp => (
+            <div key={tp.id} className="p-5 rounded-3xl bg-[#10141f]/80 border border-white/[0.06] shadow-xl backdrop-blur-md">
+              <div className="flex justify-between items-end mb-4 border-b border-white/[0.06] pb-3">
+                <div>
+                  <h5 className="font-bold text-white uppercase">{tp.name}</h5>
+                  <div className="text-xs text-slate-400 mt-1">
+                    {tp.completedCount} / {tp.memberCount} Completed • {tp.totalPoints} PTS
+                  </div>
                 </div>
-
-                <div className="min-w-0 pr-2">
-                  <span className="text-sm font-bold text-slate-200 block truncate leading-tight">
-                    {student.name}
-                  </span>
-                  <span className="text-[11px] text-slate-500 truncate block">
-                    {student.role || 'Contributor'}
-                  </span>
+                <div className="text-2xl font-black font-mono text-emerald-400">
+                  {tp.memberCount > 0 ? Math.round((tp.completedCount / tp.memberCount) * 100) : 0}%
                 </div>
               </div>
 
-              {/* Team representation & Points */}
-              <div className="flex items-center justify-end gap-4 shrink-0 min-w-[120px]">
-                {/* Team Tag */}
-                <span
-                  className={`text-[9px] font-bold px-2 py-1 rounded-full border truncate max-w-[100px] flex items-center gap-1 ${
-                    student.teamName === team1.name
-                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                      : 'bg-purple-500/10 text-purple-400 border-purple-500/20'
-                  }`}
-                >
-                  <span>{student.teamAvatar}</span>
-                  <span className="hidden sm:inline">{student.teamName}</span>
-                </span>
-
-                {/* Score */}
-                <div className="text-right min-w-[50px]">
-                  <span className="text-sm font-black font-mono text-emerald-400">
-                    {student.points}
-                  </span>
-                  <span className="text-[9px] text-slate-500 block font-semibold leading-none">PTS</span>
-                </div>
+              <div className="space-y-2">
+                {tp.members.map((m: any) => (
+                  <div key={m.id} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-white/[0.04]">
+                    <div className="flex items-center gap-3">
+                      <img src={m.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'} alt="Avatar" className="w-8 h-8 rounded-full object-cover ring-1 ring-white/10" />
+                      <span className="text-sm font-bold text-slate-200">{m.name}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {m.completed ? (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 uppercase bg-emerald-500/10 px-2 py-1 rounded-md border border-emerald-500/20">
+                          <CheckCircle className="w-3 h-3" /> Done
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 uppercase bg-slate-800 px-2 py-1 rounded-md border border-slate-700">
+                          <XCircle className="w-3 h-3" /> Pending
+                        </span>
+                      )}
+                      <div className="text-right min-w-[40px]">
+                        <span className="text-sm font-black font-mono text-emerald-400">{m.points}</span>
+                        <span className="text-[9px] text-slate-500 block font-semibold leading-none">PTS</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
+          {teamPerformance.length === 0 && (
+            <div className="p-8 text-center text-slate-500 bg-[#10141f]/50 rounded-3xl border border-white/[0.04]">
+              Create teams and assign students to monitor their daily tasks.
+            </div>
+          )}
         </div>
       </div>
     </div>

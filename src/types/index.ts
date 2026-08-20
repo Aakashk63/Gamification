@@ -62,3 +62,32 @@ export interface Post {
     role: string;
   };
 }
+
+export interface DBTeam {
+  id: string;
+  mentor_id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface DBTeamMember {
+  id: string;
+  team_id: string;
+  student_id: string;
+  created_at: string;
+  profiles?: {
+    full_name: string;
+    avatar_url: string;
+    role: string;
+  };
+}
+
+export interface DBDailyTaskCompletion {
+  id: string;
+  task_id: string;
+  student_id: string;
+  task_date: string;
+  completed: boolean;
+  points_earned: number;
+  completed_at: string;
+}
