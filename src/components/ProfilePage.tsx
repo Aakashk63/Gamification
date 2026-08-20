@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { apiUpdateProfileUrls } from '../lib/api';
-import { Share2, CheckCircle, Save, Loader2, Link2, Pencil } from 'lucide-react';
+import { Share2, CheckCircle, Save, Loader2, Link2, Pencil, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { STORE_CATALOG } from '../data/storeCatalog';
 import { useProfile } from '../contexts/ProfileContext';
 import { AvatarImage } from './ui/AvatarImage';
+import { supabase } from '../lib/supabase';
 
 export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
@@ -22,6 +23,9 @@ export const ProfilePage: React.FC = () => {
   const [isEditingLinkedin, setIsEditingLinkedin] = useState(false);
   const [isEditingLeetcode, setIsEditingLeetcode] = useState(false);
   const [avatarBase64, setAvatarBase64] = useState<string | null>(null);
+  
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteStep, setDeleteStep] = useState(1);
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -322,22 +326,37 @@ export const ProfilePage: React.FC = () => {
           )}
 
             <div className="pt-4 flex items-center justify-between shrink-0">
-              <button 
-                onClick={handleShare}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-white/[0.06] hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer text-sm font-semibold"
-              >
-                {copied ? (
-                  <>
-                    <CheckCircle className="w-4 h-4 text-emerald-400" />
-                    <span className="text-emerald-400">Link Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Share2 className="w-4 h-4" />
-                    Share Profile
-                  </>
+              <div className="flex gap-2">
+                <button 
+                  onClick={handleShare}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-white/[0.06] hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer text-sm font-semibold"
+                >
+                  {copied ? (
+                    <>
+                      <CheckCircle className="w-4 h-4 text-emerald-400" />
+                      <span className="text-emerald-400">Link Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="w-4 h-4" />
+                      Share Profile
+                    </>
+                  )}
+                </button>
+
+                {profile?.role === 'mentor' && (
+                  <button 
+                    onClick={() => {
+                      setDeleteStep(1);
+                      setShowDeleteConfirm(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-950/20 border border-red-500/30 hover:bg-red-900/20 text-red-400 transition-colors cursor-pointer text-sm font-semibold"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Profile
+                  </button>
                 )}
-              </button>
+              </div>
 
               <button
                 onClick={handleSave}
@@ -392,6 +411,58 @@ export const ProfilePage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#111622] border border-white/[0.08] rounded-3xl w-full max-w-md shadow-2xl p-6 space-y-6">
+            <div className="space-y-2">
+              <h3 className="text-lg font-black text-red-400 uppercase tracking-wide">
+                {deleteStep === 1 ? "Delete Profile?" : "Final Confirmation Required"}
+              </h3>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                {deleteStep === 1 
+                  ? "Are you sure you want to delete your profile? This will remove all your data, customized settings, and leaderboard stats. This action cannot be undone."
+                  : "WARNING: You are a Mentor. Deleting your profile will delete all of your created teams, student assignments, and mentor dashboard tracking. This action is extremely destructive. Click confirm again to permanently delete."}
+              </p>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteStep(1);
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-900 border border-white/[0.06] hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors text-sm font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (deleteStep === 1 && profile?.role === 'mentor') {
+                    setDeleteStep(2);
+                  } else {
+                    try {
+                      setSaving(true);
+                      setShowDeleteConfirm(false);
+                      const { error } = await supabase.from('profiles').delete().eq('id', profile.id);
+                      if (error) throw error;
+                      await supabase.auth.signOut();
+                      window.location.reload();
+                    } catch (err: any) {
+                      setErrorMsg(err.message || 'Failed to delete profile.');
+                    } finally {
+                      setSaving(false);
+                      setDeleteStep(1);
+                    }
+                  }
+                }}
+                className="px-4 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-slate-950 font-bold transition-all text-sm cursor-pointer shadow-lg shadow-red-500/20"
+              >
+                {deleteStep === 1 ? "Delete Profile" : "Permanently Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

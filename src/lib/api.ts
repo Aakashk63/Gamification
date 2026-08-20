@@ -838,6 +838,38 @@ export async function apiAddStudentToTeam(teamId: string, studentIdOrName: strin
   return data;
 }
 
+export async function apiDeleteTeam(teamId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from('teams')
+    .delete()
+    .eq('id', teamId)
+    .eq('mentor_id', user.id);
+
+  if (error) {
+    console.error("apiDeleteTeam error:", error);
+    throw error;
+  }
+}
+
+export async function apiRemoveStudentFromTeam(teamId: string, studentId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from('team_members')
+    .delete()
+    .eq('team_id', teamId)
+    .eq('student_id', studentId);
+
+  if (error) {
+    console.error("apiRemoveStudentFromTeam error:", error);
+    throw error;
+  }
+}
+
 export async function apiGetMentorTeamPerformance(): Promise<any[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Trophy, Plus, CheckCircle, XCircle, AlertCircle, ShieldAlert, Loader2 } from 'lucide-react';
+import { Users, Trophy, Plus, CheckCircle, XCircle, AlertCircle, ShieldAlert, Loader2, Trash2, UserMinus, ChevronDown } from 'lucide-react';
 import { 
   apiGetMentorTeams, 
   apiCreateTeam, 
   apiGetUnassignedStudents, 
   apiAddStudentToTeam, 
-  apiGetMentorTeamPerformance 
+  apiGetMentorTeamPerformance,
+  apiDeleteTeam,
+  apiRemoveStudentFromTeam
 } from '../lib/api';
 import { useProfile } from '../contexts/ProfileContext';
 import { AvatarImage } from './ui/AvatarImage';
@@ -26,6 +28,10 @@ export const MentorVSBattle: React.FC = () => {
   const [assigningTeamId, setAssigningTeamId] = useState<string | null>(null);
   const [newTeamName, setNewTeamName] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // Modal states for delete / remove confirmation
+  const [deleteTeamId, setDeleteTeamId] = useState<string | null>(null);
+  const [removeStudentInfo, setRemoveStudentInfo] = useState<{ teamId: string; studentId: string; studentName: string } | null>(null);
 
   const loadData = async (showInitialLoader = false) => {
     if (showInitialLoader && teams.length === 0) {
@@ -149,6 +155,33 @@ export const MentorVSBattle: React.FC = () => {
     }
   };
 
+  const handleDeleteTeamConfirm = async () => {
+    if (!deleteTeamId) return;
+    const teamId = deleteTeamId;
+    setDeleteTeamId(null);
+    try {
+      await apiDeleteTeam(teamId);
+      setTeams(prev => prev.filter(t => t.id !== teamId));
+      loadData(false);
+    } catch (err: any) {
+      console.error("handleDeleteTeam error:", err);
+      setError(err.message || 'Failed to delete team.');
+    }
+  };
+
+  const handleRemoveStudentConfirm = async () => {
+    if (!removeStudentInfo) return;
+    const { teamId, studentId } = removeStudentInfo;
+    setRemoveStudentInfo(null);
+    try {
+      await apiRemoveStudentFromTeam(teamId, studentId);
+      loadData(false);
+    } catch (err: any) {
+      console.error("handleRemoveStudent error:", err);
+      setError(err.message || 'Failed to remove student from team.');
+    }
+  };
+
   if (!profile || profile.role !== 'mentor') {
     return (
       <div className="p-8 text-center text-slate-400">
@@ -236,9 +269,19 @@ export const MentorVSBattle: React.FC = () => {
           {/* Teams and Unassigned Students */}
           <div className="space-y-4">
             {teams.map(team => (
-              <div key={team.id} className="p-5 rounded-3xl bg-[#111622]/90 border border-white/[0.08] shadow-xl">
+              <div key={team.id} className="p-5 rounded-3xl bg-[#111622]/90 border border-white/[0.08] shadow-xl relative">
                 <div className="flex justify-between items-center mb-3">
-                  <h5 className="font-bold text-white uppercase tracking-wide">{team.name}</h5>
+                  <div className="flex items-center gap-2">
+                    <h5 className="font-bold text-white uppercase tracking-wide">{team.name}</h5>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTeamId(team.id)}
+                      className="p-1 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                      title="Delete Team"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                     (team.team_members?.length || 0) >= 4 
                       ? 'bg-red-500/10 text-red-400 border-red-500/20' 
@@ -250,47 +293,46 @@ export const MentorVSBattle: React.FC = () => {
                 
                 <div className="space-y-2 mb-4">
                   {(team.team_members || []).map((m: any) => (
-                    <div key={m.id || m.student_id} className="flex items-center gap-3 p-2 rounded-lg bg-slate-900/50 border border-white/[0.02]">
-                      <AvatarImage 
-                        src={m.profiles?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'} 
-                        alt={m.profiles?.full_name || 'Student'} 
-                        className="w-6 h-6 rounded-full object-cover" 
-                      />
-                      <span className="text-sm font-semibold text-slate-200">{m.profiles?.full_name || 'Student'}</span>
+                    <div 
+                      key={m.id || m.student_id} 
+                      className="group flex items-center justify-between p-2.5 rounded-xl bg-slate-900/50 border border-white/[0.02] hover:border-white/[0.05] hover:bg-slate-900/80 transition-all duration-200"
+                    >
+                      <div className="flex items-center gap-3">
+                        <AvatarImage 
+                          src={m.profiles?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'} 
+                          alt={m.profiles?.full_name || 'Student'} 
+                          className="w-8 h-8 rounded-lg object-cover ring-1 ring-white/10" 
+                        />
+                        <div>
+                          <div className="text-xs font-bold text-slate-200">{m.profiles?.full_name || 'Student'}</div>
+                          <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Student</div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setRemoveStudentInfo({ teamId: team.id, studentId: m.student_id, studentName: m.profiles?.full_name || 'Student' })}
+                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150 cursor-pointer"
+                        title="Remove Student"
+                      >
+                        <UserMinus className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   ))}
                   {(!team.team_members || team.team_members.length === 0) && (
-                    <div className="text-xs text-slate-500 italic">No members yet</div>
+                    <div className="text-xs text-slate-500 italic py-2">No members yet</div>
                   )}
                 </div>
 
                 {/* Add Student Dropdown (Only if < 4) */}
                 {(team.team_members?.length || 0) < 4 ? (
-                  <div className="flex gap-2 items-center">
-                    <select 
-                      disabled={assigningTeamId === team.id}
-                      className="flex-1 px-3 py-1.5 rounded-lg bg-slate-900 border border-white/[0.08] text-xs text-slate-300 focus:outline-none focus:border-emerald-500/50 disabled:opacity-50"
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          handleAssignStudent(team.id, e.target.value);
-                          e.target.value = ""; // reset
-                        }
-                      }}
-                      defaultValue=""
-                    >
-                      <option value="" disabled>
-                        {assigningTeamId === team.id ? 'Adding student...' : '+ Add Unassigned Student...'}
-                      </option>
-                      {unassignedStudents.map(s => (
-                        <option key={s.id} value={s.id}>+ Add {s.full_name}</option>
-                      ))}
-                    </select>
-                    {assigningTeamId === team.id && (
-                      <Loader2 className="w-3.5 h-3.5 text-emerald-400 animate-spin shrink-0" />
-                    )}
-                  </div>
+                  <CustomDropdown
+                    teamId={team.id}
+                    unassignedStudents={unassignedStudents}
+                    assigningTeamId={assigningTeamId}
+                    onSelect={(val) => handleAssignStudent(team.id, val)}
+                  />
                 ) : (
-                  <div className="text-center p-2 rounded-lg bg-slate-900/50 border border-white/[0.02] text-xs font-bold text-slate-500 uppercase">
+                  <div className="text-center p-2.5 rounded-xl bg-slate-900/50 border border-white/[0.02] text-xs font-bold text-slate-500 uppercase tracking-wider">
                     Team Full — 4 / 4 Members
                   </div>
                 )}
@@ -374,6 +416,160 @@ export const MentorVSBattle: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Delete Team Confirm Modal */}
+      {deleteTeamId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#111622] border border-white/[0.08] rounded-3xl w-full max-w-md shadow-2xl p-6 space-y-6">
+            <div className="space-y-2">
+              <h3 className="text-lg font-black text-white uppercase tracking-wide">Delete Team?</h3>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                This will remove the team and all of its team-member assignments. This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDeleteTeamId(null)}
+                className="px-4 py-2 rounded-xl bg-slate-900 border border-white/[0.06] hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors text-sm font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteTeamConfirm}
+                className="px-4 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-slate-950 font-bold transition-all text-sm cursor-pointer shadow-lg shadow-red-500/20"
+              >
+                Delete Team
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Remove Student Confirm Modal */}
+      {removeStudentInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#111622] border border-white/[0.08] rounded-3xl w-full max-w-md shadow-2xl p-6 space-y-6">
+            <div className="space-y-2">
+              <h3 className="text-lg font-black text-white uppercase tracking-wide">Remove Student?</h3>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Are you sure you want to remove <span className="text-white font-bold">{removeStudentInfo.studentName}</span> from this team?
+              </p>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setRemoveStudentInfo(null)}
+                className="px-4 py-2 rounded-xl bg-slate-900 border border-white/[0.06] hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors text-sm font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRemoveStudentConfirm}
+                className="px-4 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-slate-950 font-bold transition-all text-sm cursor-pointer shadow-lg shadow-red-500/20"
+              >
+                Remove Student
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const CustomDropdown: React.FC<{
+  teamId: string;
+  unassignedStudents: any[];
+  assigningTeamId: string | null;
+  onSelect: (studentIdOrName: string) => void;
+}> = ({ teamId, unassignedStudents, assigningTeamId, onSelect }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      if (spaceBelow < 220) {
+        setOpenUpward(true);
+      } else {
+        setOpenUpward(false);
+      }
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        disabled={assigningTeamId === teamId}
+        className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-slate-950/65 border border-white/[0.08] hover:border-emerald-500/40 text-xs text-slate-300 hover:text-white transition-all focus:outline-none cursor-pointer backdrop-blur-md shadow-md"
+      >
+        <span className="flex items-center gap-2 font-bold uppercase tracking-wider text-[10px]">
+          <Plus className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Add Student</span>
+        </span>
+        {assigningTeamId === teamId ? (
+          <Loader2 className="w-3.5 h-3.5 text-emerald-400 animate-spin shrink-0" />
+        ) : (
+          <ChevronDown className="w-3.5 h-3.5 text-slate-500 transition-transform duration-200" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+        )}
+      </button>
+
+      {isOpen && (
+        <div
+          className={`absolute left-0 right-0 z-50 max-h-56 overflow-y-auto rounded-xl border border-white/[0.08] bg-[#0c101a]/95 backdrop-blur-xl shadow-2xl p-1.5 animate-in fade-in duration-150 ${
+            openUpward ? 'bottom-full mb-2' : 'top-full mt-2'
+          }`}
+          style={{
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 18px 2px rgba(16, 185, 129, 0.06)',
+            border: '1px solid rgba(255, 255, 255, 0.08)'
+          }}
+        >
+          {unassignedStudents.length === 0 ? (
+            <div className="text-center py-4 text-xs text-slate-500 italic font-semibold">
+              No unassigned students
+            </div>
+          ) : (
+            unassignedStudents.map(student => (
+              <button
+                type="button"
+                key={student.id || student.full_name}
+                onClick={() => {
+                  onSelect(student.id || student.full_name);
+                  setIsOpen(false);
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-emerald-500/10 text-left transition-colors cursor-pointer group"
+              >
+                <AvatarImage
+                  src={student.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'}
+                  alt={student.full_name}
+                  className="w-8 h-8 rounded-lg object-cover ring-1 ring-white/10"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold text-white group-hover:text-emerald-400 truncate">
+                    {student.full_name}
+                  </div>
+                  <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
+                    Student
+                  </div>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 };
