@@ -504,16 +504,71 @@ export async function apiGetMentorTeams(): Promise<any[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  const { data, error } = await supabase
+  // Fetch teams with nested team_members and profiles
+  const { data: teams, error } = await supabase
     .from('teams')
     .select(`
       *,
-      team_members (*, profiles (full_name, avatar_url, role))
+      team_members (
+        id,
+        team_id,
+        student_id,
+        profiles (id, full_name, avatar_url, role)
+      )
     `)
-    .eq('mentor_id', user.id);
+    .eq('mentor_id', user.id)
+    .order('created_at', { ascending: true });
 
-  if (error) throw error;
-  return data || [];
+  if (error) {
+    console.warn("apiGetMentorTeams joined query error, attempting fallback:", error);
+    // Fallback: fetch teams, then team_members, then profiles
+    const { data: rawTeams, error: rawError } = await supabase
+      .from('teams')
+      .select('*')
+      .eq('mentor_id', user.id)
+      .order('created_at', { ascending: true });
+
+    if (rawError) {
+      console.error("apiGetMentorTeams fallback error:", rawError);
+      throw rawError;
+    }
+
+    if (!rawTeams || rawTeams.length === 0) return [];
+
+    const teamIds = rawTeams.map(t => t.id);
+    const { data: members } = await supabase
+      .from('team_members')
+      .select('*')
+      .in('team_id', teamIds);
+
+    const studentIds = (members || []).map(m => m.student_id);
+    let profilesMap = new Map();
+    if (studentIds.length > 0) {
+      const { data: studentProfiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, role')
+        .in('id', studentIds);
+      (studentProfiles || []).forEach(p => profilesMap.set(p.id, p));
+    }
+
+    return rawTeams.map(t => {
+      const tMembers = (members || [])
+        .filter(m => m.team_id === t.id)
+        .map(m => ({
+          ...m,
+          profiles: profilesMap.get(m.student_id) || { full_name: 'Student', avatar_url: '' }
+        }));
+      return { ...t, team_members: tMembers };
+    });
+  }
+
+  return (teams || []).map(t => ({
+    ...t,
+    team_members: (t.team_members || []).map((m: any) => ({
+      ...m,
+      profiles: m.profiles || { full_name: 'Student', avatar_url: '' }
+    }))
+  }));
 }
 
 export async function apiCreateTeam(name: string): Promise<void> {
@@ -524,66 +579,105 @@ export async function apiCreateTeam(name: string): Promise<void> {
     .from('teams')
     .insert({ mentor_id: user.id, name });
 
-  if (error) throw error;
+  if (error) {
+    console.error("apiCreateTeam error:", error);
+    throw error;
+  }
 }
 
 export async function apiGetUnassignedStudents(): Promise<any[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  // Get students assigned to this mentor
-  const { data: students, error: studentsError } = await supabase
+  // 1. Get mentor profile and mentor full_name
+  let mentorProfile: any = null;
+  const { data: mProfile, error: mError } = await supabase
     .from('profiles')
-    .select('id, full_name, avatar_url, role')
-    .eq('mentor_id', user.id)
-    .eq('role', 'student');
+    .select('*')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (mError) {
+    console.warn("Error fetching mentor profile:", mError);
+  }
+  mentorProfile = mProfile || { id: user.id, full_name: user.user_metadata?.name || 'Mentor' };
+  const mentorName = (mentorProfile?.full_name || user.user_metadata?.name || '').trim();
+  const mentorId = user.id;
+
+  // 2. Fetch all profiles where role = 'student'
+  const { data: rawStudents, error: studentsError } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('role', 'student')
+    .order('full_name', { ascending: true });
 
   if (studentsError) {
-    console.error("apiGetUnassignedStudents: Error fetching profiles", studentsError);
+    console.error("REGISTERED STUDENTS query error:", studentsError);
     throw studentsError;
   }
-  
-  if (!students || students.length === 0) return [];
 
-  const studentIds = students.map(s => s.id);
-  
-  // Find which of these students are already in ANY team
-  const { data: members, error: membersError } = await supabase
+  // 3. Filter students belonging to this mentor using all possible relationship fields
+  const registeredStudents = (rawStudents || []).filter((s: any) => {
+    // Check mentor_name match (case-insensitive)
+    if (mentorName && s.mentor_name && typeof s.mentor_name === 'string' && s.mentor_name.trim().toLowerCase() === mentorName.toLowerCase()) {
+      return true;
+    }
+    // Check mentor_id matching mentor UUID
+    if (mentorId && s.mentor_id === mentorId) {
+      return true;
+    }
+    // Check mentor_id matching mentor name (in case name was saved in mentor_id)
+    if (mentorName && s.mentor_id && typeof s.mentor_id === 'string' && s.mentor_id.trim().toLowerCase() === mentorName.toLowerCase()) {
+      return true;
+    }
+    // Check general 'mentor' field if it exists
+    if (mentorName && s.mentor && typeof s.mentor === 'string' && s.mentor.trim().toLowerCase() === mentorName.toLowerCase()) {
+      return true;
+    }
+    return false;
+  });
+
+  // 4. Fetch all team members to determine assigned students
+  const { data: allTeamMembers, error: tmError } = await supabase
     .from('team_members')
-    .select('student_id')
-    .in('student_id', studentIds);
+    .select('*');
 
-  if (membersError) {
-    console.error("apiGetUnassignedStudents: Error fetching team_members", membersError);
-    throw membersError;
+  if (tmError) {
+    console.warn("TEAM MEMBERS query error:", tmError);
   }
 
-  const assignedStudentIds = new Set((members || []).map(m => m.student_id));
+  const assignedStudentIds = new Set((allTeamMembers || []).map((m: any) => m.student_id));
 
-  const availableStudents = students.filter(s => !assignedStudentIds.has(s.id));
-  
-  if (import.meta.env.DEV) {
-    console.log({
-      currentUserId: user.id,
-      currentMentorProfileId: user.id,
-      currentMentorName: user.user_metadata?.name || 'Unknown Mentor',
-      studentsRegisteredUnderMentor: students.length,
-      availableUnassignedStudents: availableStudents
-    });
-  }
-  
-  return availableStudents;
+  // 5. Available students are registered students not already in any team
+  const availableStudents = registeredStudents.filter((s: any) => !assignedStudentIds.has(s.id));
+
+  // Exact temporary debugging logs requested by user
+  console.log("AUTH USER:", user.id);
+  console.log("MENTOR PROFILE:", mentorProfile);
+  console.log("MENTOR NAME:", mentorName);
+  console.log("REGISTERED STUDENTS:", registeredStudents);
+  console.log("TEAM MEMBERS:", allTeamMembers || []);
+  console.log("AVAILABLE STUDENTS:", availableStudents);
+
+  return availableStudents.map((s: any) => ({
+    id: s.id,
+    full_name: s.full_name || 'Unnamed Student',
+    avatar_url: s.avatar_url || '',
+    role: s.role || 'student'
+  }));
 }
 
 export async function apiAddStudentToTeam(teamId: string, studentId: string): Promise<void> {
-  // Check limit
+  // Check limit (Maximum 4 members)
   const { count, error: countError } = await supabase
     .from('team_members')
     .select('*', { count: 'exact', head: true })
     .eq('team_id', teamId);
     
-  if (countError) throw countError;
-  if (count && count >= 4) {
+  if (countError) {
+    console.warn("apiAddStudentToTeam count check error:", countError);
+  }
+  if (count !== null && count >= 4) {
     throw new Error("Team is full. Maximum 4 students allowed.");
   }
 
@@ -593,8 +687,10 @@ export async function apiAddStudentToTeam(teamId: string, studentId: string): Pr
     .select('*', { count: 'exact', head: true })
     .eq('student_id', studentId);
     
-  if (studentCountError) throw studentCountError;
-  if (studentTeamCount && studentTeamCount > 0) {
+  if (studentCountError) {
+    console.warn("apiAddStudentToTeam duplicate check error:", studentCountError);
+  }
+  if (studentTeamCount !== null && studentTeamCount > 0) {
     throw new Error("Student is already assigned to a team.");
   }
 
@@ -603,6 +699,7 @@ export async function apiAddStudentToTeam(teamId: string, studentId: string): Pr
     .insert({ team_id: teamId, student_id: studentId });
 
   if (error) {
+    console.error("apiAddStudentToTeam insert error:", error);
     if (error.code === '23505') throw new Error("Student is already assigned to a team.");
     throw error;
   }
@@ -616,8 +713,10 @@ export async function apiGetMentorTeamPerformance(): Promise<any[]> {
   const teams = await apiGetMentorTeams();
   if (!teams || teams.length === 0) return [];
 
-  // Get today's completions for all students
-  const today = new Date().toISOString().split('T')[0];
+  // Get today's completions for all students using local date
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  
   const { data: completions } = await supabase
     .from('daily_task_completions')
     .select('student_id, points_earned')
@@ -626,18 +725,18 @@ export async function apiGetMentorTeamPerformance(): Promise<any[]> {
   const completionsMap = new Map();
   if (completions) {
     completions.forEach(c => {
-      completionsMap.set(c.student_id, c.points_earned);
+      completionsMap.set(c.student_id, c.points_earned || 0);
     });
   }
 
-  // Format response
+  // Format response for Daily Task Monitor
   return teams.map(team => {
     const members = (team.team_members || []).map((m: any) => {
       const isCompleted = completionsMap.has(m.student_id);
       return {
         id: m.student_id,
-        name: m.profiles?.full_name || 'Unknown',
-        avatar: m.profiles?.avatar_url,
+        name: m.profiles?.full_name || 'Student',
+        avatar: m.profiles?.avatar_url || '',
         completed: isCompleted,
         points: isCompleted ? completionsMap.get(m.student_id) : 0
       };
