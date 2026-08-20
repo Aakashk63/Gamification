@@ -645,18 +645,21 @@ export async function apiGetMentorTeams(): Promise<any[]> {
   }));
 }
 
-export async function apiCreateTeam(name: string): Promise<void> {
+export async function apiCreateTeam(name: string): Promise<any> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('teams')
-    .insert({ mentor_id: user.id, name });
+    .insert({ mentor_id: user.id, name })
+    .select('*')
+    .single();
 
   if (error) {
     console.error("apiCreateTeam error:", error);
     throw error;
   }
+  return data;
 }
 
 export async function apiGetUnassignedStudents(): Promise<any[]> {
