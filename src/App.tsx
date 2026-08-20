@@ -49,6 +49,7 @@ export function App() {
         {/* All dashboard tabs as routes */}
         <Route path="/leaderboard" element={<Dashboard key={session.user.id} />} />
         <Route path="/announcement" element={<Dashboard key={session.user.id} />} />
+        <Route path="/team" element={<Dashboard key={session.user.id} />} />
         <Route path="/task" element={<Dashboard key={session.user.id} />} />
         <Route path="/redeem" element={<Dashboard key={session.user.id} />} />
         <Route path="/profile" element={<Dashboard key={session.user.id} />} />

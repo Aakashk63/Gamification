@@ -88,10 +88,14 @@ export const Dashboard: React.FC = () => {
   }, [isProfileDropdownOpen]);
 
   React.useEffect(() => {
-
-
     apiGetDashboardStats().then(setDashboardStats).catch(console.error);
-  }, []);
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      console.log("Authenticated user:", user);
+      console.log("Mentor profile:", globalProfile);
+      console.log("Mentor avatar:", globalProfile?.avatar_url);
+    });
+  }, [globalProfile]);
 
   const handleLogout = async () => {
     setLoggingOut(true);
