@@ -54,23 +54,43 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Fetch mentor list directly from public.profiles table where role = 'mentor'
-  // NOTE: Requires the RLS policy "Public can read mentor profiles" to exist in Supabase.
-  // If mentor list is empty, run src/fix_mentor_rls.sql in your Supabase SQL Editor.
+  // Fetch mentor list via SECURITY DEFINER RPC — works even when user is not authenticated.
+  // Falls back to direct query if the RPC doesn't exist yet (before db_functions.sql is run).
   useEffect(() => {
     const fetchMentors = async () => {
       setMentorsLoading(true);
       setMentorFetchError(null);
       try {
+        // Primary: use the SECURITY DEFINER RPC that bypasses RLS
+        const { data: rpcData, error: rpcError } = await supabase
+          .rpc('get_mentor_list');
+
+        if (!rpcError && rpcData) {
+          const mapped = (rpcData as any[]).map((p) => ({
+            id: p.id,
+            name: p.full_name || 'Unnamed Mentor',
+            avatar: p.avatar_url || '',
+            role: 'mentor',
+            department: ''
+          }));
+          setMentorFetchError(null);
+          setMentorList(mapped);
+          if (mapped.length === 0) {
+            console.warn('get_mentor_list() returned 0 mentors. Check public.profiles.');
+          }
+          return;
+        }
+
+        // Fallback: direct query (requires RLS policy "Public can read mentor profiles")
+        console.warn('get_mentor_list RPC not available, falling back to direct query:', rpcError?.message);
         const { data, error } = await supabase
           .from('profiles')
-          .select('id, full_name, avatar_url, role')
+          .select('id, full_name, avatar_url')
           .eq('role', 'mentor')
           .order('full_name', { ascending: true });
 
         if (error) {
-          // Log full error details so developer can diagnose RLS vs. network issues
-          console.error('Mentor fetch FAILED (likely RLS — run src/fix_mentor_rls.sql):', {
+          console.error('Mentor fetch FAILED — run src/db_functions.sql in Supabase SQL Editor:', {
             message: error.message,
             code: error.code,
             details: error.details,
@@ -88,16 +108,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           role: 'mentor',
           department: ''
         }));
-
-        if (mapped.length === 0) {
-          console.warn(
-            'Mentor query succeeded but returned 0 rows. ' +
-            'If mentors exist in public.profiles, run src/fix_mentor_rls.sql in Supabase SQL Editor.'
-          );
-        }
-
         setMentorFetchError(null);
         setMentorList(mapped);
+
+        if (mapped.length === 0) {
+          console.warn('Mentor list empty. Run src/db_functions.sql in Supabase SQL Editor.');
+        }
       } catch (err: any) {
         console.error('Mentor fetch exception:', err);
         setMentorFetchError('Unable to load mentors. Please try again.');
@@ -202,95 +218,101 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         
         if (signupError) throw signupError;
 
-        // If signup was successful (new user), create profile in public.profiles
+        // If signup was successful (new user), create the profile via SECURITY DEFINER RPC.
+        // This bypasses RLS and atomically: inserts the student profile WITH mentor_id
+        // AND syncs the mentor's students[] JSONB — all in one DB transaction.
         if (data.user && data.user.identities && data.user.identities.length > 0) {
-          // Final guard: student must have selected mentor
-          if (effectiveRole === 'student' && !selectedMentorId) {
-            setErrorMsg("Please select a mentor before continuing.");
-            // Cleanup: sign out the created auth user since profile creation was aborted
-            await supabase.auth.signOut();
-            setLoading(false);
-            return;
-          }
-
-          const resolvedMentorId = effectiveRole === 'student' ? selectedMentorId : null;
-          const resolvedMentorObj = resolvedMentorId
-            ? mentorList.find(m => m.id === resolvedMentorId) || null
-            : null;
-          const resolvedMentorName = resolvedMentorObj?.name || null;
-
-          // Build the profile payload with all required fields
-          const profilePayload: Record<string, any> = {
-            id: data.user.id,
-            full_name: name.trim(),
-            role: effectiveRole,
-            mentor_id: resolvedMentorId,
-            mentor_name: resolvedMentorName,
-            avatar_url: effectiveRole === 'mentor'
-              ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'
-              : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
-          };
 
           if (effectiveRole === 'student') {
-            profilePayload.department = dept.trim() || null;
-            profilePayload.college = collegeName.trim() || null;
-            profilePayload.register_no = registerNo.trim() || null;
-          }
+            // The mentor ID was already validated above before signUp() was called.
+            // resolvedMentorId is guaranteed to be a valid UUID at this point.
+            const resolvedMentorId = selectedMentorId;
+            const resolvedMentorName = mentorList.find(m => m.id === resolvedMentorId)?.name || '';
+            const avatarUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80';
 
-          console.log('Creating profile with payload:', {
-            ...profilePayload,
-            mentor_id: resolvedMentorId,
-            mentor_name: resolvedMentorName
-          });
-
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .upsert(profilePayload);
-
-          if (profileError) {
-            console.error('Failed to create profile record:', profileError);
-            // Surface meaningful error if mentor_id missing vs. RLS error
-            if (profileError.code === '42501') {
-              setErrorMsg(
-                'Account created but profile setup failed: database permission error. ' +
-                'Please contact an admin to run the fix_mentor_rls.sql migration.'
-              );
-            } else {
-              setErrorMsg(`Profile creation failed: ${profileError.message}`);
-            }
-            setLoading(false);
-            return;
-          }
-
-          // Update mentor's students[] array (runs after profile is saved)
-          // The DB trigger also handles this, but we do it here as a safety net
-          if (effectiveRole === 'student' && resolvedMentorId) {
-            try {
-              const { data: mentorProfile } = await supabase
-                .from('profiles')
-                .select('id, students')
-                .eq('id', resolvedMentorId)
-                .single();
-
-              if (mentorProfile) {
-                const studentName = name.trim();
-                const current: string[] = Array.isArray(mentorProfile.students)
-                  ? mentorProfile.students
-                  : [];
-
-                if (!current.includes(studentName)) {
-                  await supabase
-                    .from('profiles')
-                    .update({ students: [...current, studentName] })
-                    .eq('id', resolvedMentorId);
-                  console.log(`Added "${studentName}" to mentor "${resolvedMentorName}" students list.`);
-                }
+            // Call the SECURITY DEFINER database function.
+            // This runs as the DB function owner — bypasses RLS entirely.
+            const { data: rpcResult, error: rpcError } = await supabase.rpc(
+              'create_student_profile',
+              {
+                p_user_id:     data.user.id,
+                p_full_name:   name.trim(),
+                p_avatar_url:  avatarUrl,
+                p_mentor_id:   resolvedMentorId,
+                p_department:  dept.trim() || null,
+                p_college:     collegeName.trim() || null,
+                p_register_no: registerNo.trim() || null
               }
-            } catch (e) {
-              // Non-fatal: the DB trigger should handle this
-              console.warn('Could not update mentor students array:', e);
+            );
+
+            if (rpcError) {
+              console.error('create_student_profile RPC error:', rpcError);
+              // RPC not deployed yet — fall back to direct upsert
+              if (rpcError.code === 'PGRST202' || rpcError.message?.includes('Could not find the function')) {
+                console.warn('Falling back to direct upsert — deploy src/db_functions.sql for reliability.');
+                const { error: profileError } = await supabase
+                  .from('profiles')
+                  .upsert({
+                    id:          data.user.id,
+                    full_name:   name.trim(),
+                    role:        'student',
+                    avatar_url:  avatarUrl,
+                    mentor_id:   resolvedMentorId,
+                    mentor_name: resolvedMentorName,
+                    department:  dept.trim() || null,
+                    college:     collegeName.trim() || null,
+                    register_no: registerNo.trim() || null,
+                    students:    []
+                  });
+
+                if (profileError) {
+                  console.error('Fallback upsert failed:', profileError);
+                  setErrorMsg(`Profile creation failed: ${profileError.message}`);
+                  setLoading(false);
+                  return;
+                }
+              } else {
+                setErrorMsg(`Profile creation failed: ${rpcError.message}`);
+                setLoading(false);
+                return;
+              }
+            } else {
+              const result = rpcResult as any;
+              if (result && result.success === false) {
+                console.error('create_student_profile returned error:', result.error);
+                setErrorMsg(result.error || 'Profile creation failed at database level.');
+                setLoading(false);
+                return;
+              }
+              console.log('Student profile created via RPC:', result);
+            }
+
+          } else {
+            // MENTOR signup — use create_mentor_profile RPC
+            const mentorAvatarUrl = 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80';
+            const { data: rpcResult, error: rpcError } = await supabase.rpc(
+              'create_mentor_profile',
+              {
+                p_user_id:    data.user.id,
+                p_full_name:  name.trim(),
+                p_avatar_url: mentorAvatarUrl
+              }
+            );
+
+            if (rpcError) {
+              console.warn('create_mentor_profile RPC error, falling back to direct upsert:', rpcError.message);
+              await supabase.from('profiles').upsert({
+                id:        data.user.id,
+                full_name: name.trim(),
+                role:      'mentor',
+                avatar_url: mentorAvatarUrl,
+                students:  []
+              });
+            } else {
+              console.log('Mentor profile created via RPC:', rpcResult);
             }
           }
+
         } else {
           setErrorMsg('User already exists. Please log in.');
           setLoading(false);
