@@ -54,65 +54,41 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Fetch mentor list via SECURITY DEFINER RPC — works even when user is not authenticated.
-  // Falls back to direct query if the RPC doesn't exist yet (before db_functions.sql is run).
+  // Fetch mentor list using the SECURITY DEFINER RPC.
+  // The get_mentor_list() function is granted to anon + authenticated,
+  // so it works on the signup page before the user logs in.
+  // Database confirmed working — do NOT add fallback direct queries.
   useEffect(() => {
     const fetchMentors = async () => {
       setMentorsLoading(true);
       setMentorFetchError(null);
       try {
-        // Primary: use the SECURITY DEFINER RPC that bypasses RLS
-        const { data: rpcData, error: rpcError } = await supabase
-          .rpc('get_mentor_list');
+        const { data: rpcData, error: rpcError } = await supabase.rpc('get_mentor_list');
 
-        if (!rpcError && rpcData) {
-          const mapped = (rpcData as any[]).map((p) => ({
-            id: p.id,
-            name: p.full_name || 'Unnamed Mentor',
-            avatar: p.avatar_url || '',
-            role: 'mentor',
-            department: ''
-          }));
-          setMentorFetchError(null);
-          setMentorList(mapped);
-          if (mapped.length === 0) {
-            console.warn('get_mentor_list() returned 0 mentors. Check public.profiles.');
-          }
-          return;
-        }
-
-        // Fallback: direct query (requires RLS policy "Public can read mentor profiles")
-        console.warn('get_mentor_list RPC not available, falling back to direct query:', rpcError?.message);
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id, full_name, avatar_url')
-          .eq('role', 'mentor')
-          .order('full_name', { ascending: true });
-
-        if (error) {
-          console.error('Mentor fetch FAILED — run src/db_functions.sql in Supabase SQL Editor:', {
-            message: error.message,
-            code: error.code,
-            details: error.details,
-            hint: error.hint
+        if (rpcError) {
+          console.error('get_mentor_list RPC failed:', {
+            message: rpcError.message,
+            code: rpcError.code,
+            details: rpcError.details
           });
-          setMentorFetchError(`Unable to load mentors. ${error.message || 'Please try again.'}`);
+          setMentorFetchError('Unable to load mentors. Please refresh and try again.');
           setMentorList([]);
           return;
         }
 
-        const mapped = (data || []).map((p: any) => ({
-          id: p.id,
-          name: p.full_name || 'Unnamed Mentor',
-          avatar: p.avatar_url || '',
-          role: 'mentor',
+        const mentors = (rpcData as any[] || []).map((p) => ({
+          id:         p.id   as string,
+          name:       (p.full_name  as string) || 'Unnamed Mentor',
+          avatar:     (p.avatar_url as string) || '',
+          role:       'mentor',
           department: ''
         }));
-        setMentorFetchError(null);
-        setMentorList(mapped);
 
-        if (mapped.length === 0) {
-          console.warn('Mentor list empty. Run src/db_functions.sql in Supabase SQL Editor.');
+        setMentorList(mentors);
+        setMentorFetchError(null);
+
+        if (mentors.length === 0) {
+          console.warn('get_mentor_list() returned 0 rows. Ensure mentor profiles exist in public.profiles.');
         }
       } catch (err: any) {
         console.error('Mentor fetch exception:', err);
@@ -124,6 +100,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
     };
     fetchMentors();
   }, []);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -218,27 +195,22 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         
         if (signupError) throw signupError;
 
-        // If signup was successful (new user), create the profile via SECURITY DEFINER RPC.
-        // This bypasses RLS and atomically: inserts the student profile WITH mentor_id
-        // AND syncs the mentor's students[] JSONB — all in one DB transaction.
+        // New user created — build the profile using SECURITY DEFINER RPCs.
+        // These functions bypass RLS and guarantee the mentor_id is written atomically.
+        // DO NOT use direct .from('profiles').insert() or .upsert() for students.
         if (data.user && data.user.identities && data.user.identities.length > 0) {
 
           if (effectiveRole === 'student') {
-            // The mentor ID was already validated above before signUp() was called.
-            // resolvedMentorId is guaranteed to be a valid UUID at this point.
-            const resolvedMentorId = selectedMentorId;
-            const resolvedMentorName = mentorList.find(m => m.id === resolvedMentorId)?.name || '';
+            // selectedMentorId is already validated as a non-empty UUID above (before signUp).
             const avatarUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80';
 
-            // Call the SECURITY DEFINER database function.
-            // This runs as the DB function owner — bypasses RLS entirely.
             const { data: rpcResult, error: rpcError } = await supabase.rpc(
               'create_student_profile',
               {
                 p_user_id:     data.user.id,
                 p_full_name:   name.trim(),
                 p_avatar_url:  avatarUrl,
-                p_mentor_id:   resolvedMentorId,
+                p_mentor_id:   selectedMentorId,
                 p_department:  dept.trim() || null,
                 p_college:     collegeName.trim() || null,
                 p_register_no: registerNo.trim() || null
@@ -246,46 +218,33 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
             );
 
             if (rpcError) {
-              console.error('create_student_profile RPC error:', rpcError);
-              // RPC not deployed yet — fall back to direct upsert
-              if (rpcError.code === 'PGRST202' || rpcError.message?.includes('Could not find the function')) {
-                console.warn('Falling back to direct upsert — deploy src/db_functions.sql for reliability.');
-                const { error: profileError } = await supabase
-                  .from('profiles')
-                  .upsert({
-                    id:          data.user.id,
-                    full_name:   name.trim(),
-                    role:        'student',
-                    avatar_url:  avatarUrl,
-                    mentor_id:   resolvedMentorId,
-                    mentor_name: resolvedMentorName,
-                    department:  dept.trim() || null,
-                    college:     collegeName.trim() || null,
-                    register_no: registerNo.trim() || null,
-                    students:    []
-                  });
-
-                if (profileError) {
-                  console.error('Fallback upsert failed:', profileError);
-                  setErrorMsg(`Profile creation failed: ${profileError.message}`);
-                  setLoading(false);
-                  return;
-                }
-              } else {
-                setErrorMsg(`Profile creation failed: ${rpcError.message}`);
-                setLoading(false);
-                return;
-              }
-            } else {
-              const result = rpcResult as any;
-              if (result && result.success === false) {
-                console.error('create_student_profile returned error:', result.error);
-                setErrorMsg(result.error || 'Profile creation failed at database level.');
-                setLoading(false);
-                return;
-              }
-              console.log('Student profile created via RPC:', result);
+              // Surface the real error — do NOT silently continue or fallback.
+              console.error('create_student_profile RPC error:', {
+                message: rpcError.message,
+                code:    rpcError.code,
+                details: rpcError.details
+              });
+              setErrorMsg(`Profile creation failed: ${rpcError.message || 'Database error. Contact support.'}`);
+              // Sign out the orphaned auth user so they can retry
+              await supabase.auth.signOut();
+              setLoading(false);
+              return;
             }
+
+            // Check the function's own success/error result
+            const result = rpcResult as { success: boolean; error?: string; mentor_id?: string; mentor_name?: string };
+            if (result && result.success === false) {
+              console.error('create_student_profile returned failure:', result.error);
+              setErrorMsg(result.error || 'Profile creation failed at the database level.');
+              await supabase.auth.signOut();
+              setLoading(false);
+              return;
+            }
+
+            console.log(
+              `Student profile created. mentor_id=${result?.mentor_id} mentor_name="${result?.mentor_name}"`
+            );
+            // The database trigger automatically updates mentor.students[] — no frontend sync needed.
 
           } else {
             // MENTOR signup — use create_mentor_profile RPC
@@ -300,21 +259,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
             );
 
             if (rpcError) {
-              console.warn('create_mentor_profile RPC error, falling back to direct upsert:', rpcError.message);
-              await supabase.from('profiles').upsert({
-                id:        data.user.id,
-                full_name: name.trim(),
-                role:      'mentor',
-                avatar_url: mentorAvatarUrl,
-                students:  []
-              });
-            } else {
-              console.log('Mentor profile created via RPC:', rpcResult);
+              console.error('create_mentor_profile RPC error:', rpcError.message);
+              setErrorMsg(`Mentor profile creation failed: ${rpcError.message}`);
+              await supabase.auth.signOut();
+              setLoading(false);
+              return;
             }
+            console.log('Mentor profile created via RPC:', rpcResult);
           }
 
         } else {
-          setErrorMsg('User already exists. Please log in.');
+          setErrorMsg('An account with this email already exists. Please log in.');
           setLoading(false);
           return;
         }
